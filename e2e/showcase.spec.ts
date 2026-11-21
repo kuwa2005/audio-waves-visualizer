@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { expect, test } from "@playwright/test";
 import { CATALOG } from "../src/plugins/catalog";
 import { EFFECT_CATALOG } from "../src/plugins/effectCatalog";
@@ -32,6 +33,23 @@ test("全ビジュアライザー・全エフェクトがエラーなく描画�
     await page.waitForTimeout(1800);
     await page.getByTestId("stage").screenshot({ path: test.info().outputPath(`vis-${meta.id}.png`) });
     console.log(meta.id, (await page.getByTestId("perf-hud").innerText()).replace(/\n/g, " | "));
+    if (meta.id === "pulse-ring" || meta.id === "warp-tunnel") {
+      // 「光の強さ」0% にすると中心が暗くなる（演奏中なのでフレームごとの揺れを避け、0% と 100% を交互に 2 回ずつ測る）
+      const center = async (light: string) => {
+        await page.getByTestId("inspector").locator("label", { hasText: "光の強さ" }).locator("input").fill(light);
+        await page.waitForTimeout(300);
+        const path = test.info().outputPath(`${meta.id}-light-${light}.png`);
+        await page.getByTestId("stage").screenshot({ path });
+        const box = (await page.getByTestId("stage").boundingBox())!;
+        const w = 60;
+        return execFileSync("ffmpeg", ["-v", "error", "-i", path, "-vf", `crop=${w}:${w}:${Math.floor(box.width / 2 - w / 2)}:${Math.floor(box.height / 2 - w / 2)},scale=1:1,format=gray`, "-f", "rawvideo", "-"])[0];
+      };
+      const on = (await center("100")) + (await center("100"));
+      const off = (await center("0")) + (await center("0"));
+      console.log(meta.id, "center luma 100%/0%:", on / 2, off / 2);
+      expect(off).toBeLessThan(on);
+      await page.getByTestId("inspector").locator("label", { hasText: "光の強さ" }).locator("input").fill("100");
+    }
     if (meta.id === "drops") {
       // 種類をすべて切り替えて確認
       for (const v of ["heart", "firework", "star", "paw"]) {

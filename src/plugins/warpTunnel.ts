@@ -37,8 +37,9 @@ export const warpTunnel: VisualizerPlugin = {
         ctx.save();
         ctx.globalCompositeOperation = "lighter";
 
-        // 中心の光
-        ctx.globalAlpha = Math.min(1, 0.3 + f.kick * 0.7);
+        // 中心の光（ビートで閃く。「光の強さ」0〜100% を掛ける）
+        const light = Math.min(100, Math.max(0, num(params, "light", 100))) / 100;
+        ctx.globalAlpha = Math.min(1, (0.3 + f.kick * 0.7) * light);
         const core = m * (0.18 + f.bass * 0.12);
         ctx.drawImage(sprites.tintedGlow(`hsl(${hue + hueShift} 100% 70%)`), cx - core, cy - core, core * 2, core * 2);
 

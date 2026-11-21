@@ -62,8 +62,9 @@ export const pulseRing: VisualizerPlugin = {
         ctx.save();
         ctx.globalCompositeOperation = "lighter";
 
-        // 中心の光
-        ctx.globalAlpha = Math.min(1, 0.25 + f.kick * 0.6);
+        // 中心の光（衝撃波に合わせて光る。「光の強さ」0〜100% を掛ける）
+        const light = Math.min(100, Math.max(0, num(params, "light", 100))) / 100;
+        ctx.globalAlpha = Math.min(1, (0.25 + f.kick * 0.6) * light);
         const core = r0 * 2.6;
         ctx.drawImage(sprites.tintedGlow(color), cx - core, cy - core, core * 2, core * 2);
 
@@ -95,8 +96,8 @@ export const pulseRing: VisualizerPlugin = {
         }
         ctx.stroke();
 
-        // 内側の輪郭
-        ctx.globalAlpha = 0.6 + f.kick * 0.4;
+        // 内側の輪郭（ビートで光る分だけ「光の強さ」を掛ける）
+        ctx.globalAlpha = 0.6 + f.kick * 0.4 * light;
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.arc(cx, cy, r0 - 6, 0, Math.PI * 2);

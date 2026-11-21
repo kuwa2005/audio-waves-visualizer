@@ -377,3 +377,14 @@ describe("素材の振り分け（拡張子）", () => {
     expect(mediaKind("cover.png", "audio/mpeg")).toBe("image");
   });
 });
+
+import { warpTunnelMeta } from "../plugins/catalog";
+
+describe("光の強さ（パルスリング・ワープトンネル）", () => {
+  it("has a 0〜100% light parameter defaulting to 100%", () => {
+    for (const m of [pulseRingMeta, warpTunnelMeta]) {
+      const d = m.params.find((p) => p.key === "light");
+      expect(d, m.id).toMatchObject({ type: "number", min: 0, max: 100, default: 100, unit: "%" });
+    }
+  });
+});

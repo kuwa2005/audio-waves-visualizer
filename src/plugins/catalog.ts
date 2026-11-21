@@ -38,6 +38,7 @@ export const pulseRingMeta: PluginMeta = {
     { key: "color", label: "色", type: "color", default: "#22d3ee" },
     { key: "accent", label: "衝撃波の色", type: "color", default: "#f472b6" },
     { key: "shockwave", label: "衝撃波", type: "number", min: 0, max: 1, step: 0.05, default: 0.8 },
+    { key: "light", label: "衝撃波に合わせて光る光の強さ", type: "number", min: 0, max: 100, step: 5, default: 100, unit: "%" },
     { key: "rotate", label: "回転速度", type: "number", min: -1, max: 1, step: 0.05, default: 0.15 },
   ],
   bounds(p, W, H) {
@@ -60,6 +61,7 @@ export const warpTunnelMeta: PluginMeta = {
     { key: "twist", label: "ねじれ", type: "number", min: -1, max: 1, step: 0.05, default: 0.35 },
     { key: "hue", label: "色相", type: "number", min: 0, max: 360, step: 1, default: 200, unit: "°" },
     { key: "hueShift", label: "色の変化", type: "number", min: 0, max: 180, step: 1, default: 90, unit: "°" },
+    { key: "light", label: "ビートで光る中心の光の強さ", type: "number", min: 0, max: 100, step: 5, default: 100, unit: "%" },
   ],
   bounds: full,
 };
