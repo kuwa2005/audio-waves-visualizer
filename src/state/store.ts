@@ -20,6 +20,7 @@ import { findMeta } from "../plugins/catalog";
 import { findEffectMeta } from "../plugins/effectCatalog";
 import { SUBTITLE_PARAMS, TITLE_PARAMS } from "../text/textCatalog";
 import type { Cue } from "../text/subtitles";
+import { clearSettings, loadSettings, saveSettings } from "./persist";
 import { defaultParams } from "../plugins/types";
 
 export type Step = "media" | "visual" | "text" | "export";
@@ -72,6 +73,8 @@ type Actions = {
   setEffectParam(layerId: string, key: string, value: ParamValue): void;
   setBackground(patch: Partial<Omit<BackgroundLayer, "id" | "kind">>): void;
   setRange(patch: Partial<ProgramRange>): void;
+  /** 保存した設定を消し、素材の調整・レイヤー・エフェクトを初期状態に戻す（素材と文字はそのまま） */
+  resetSettings(): void;
   setTextParam(id: TextLayerId, key: string, value: ParamValue): void;
   setTextEnabled(id: TextLayerId, enabled: boolean): void;
   setSubtitles(cues: Cue[], fileName: string | null): void;
@@ -81,13 +84,22 @@ type Actions = {
 let seq = 0;
 const newLayerId = () => `layer-${Date.now().toString(36)}-${seq++}`;
 
-function initialScene(): Scene {
+/** 初期状態のシーン（保存した設定を使わない） */
+function freshScene(): Scene {
   const s = defaultScene();
   s.title.params = defaultParams({ params: TITLE_PARAMS });
   s.subtitles.params = defaultParams({ params: SUBTITLE_PARAMS });
   const meta = findMeta("neon-bars")!;
   s.visualizers.push({ id: newLayerId(), kind: "visualizer", pluginId: meta.id, enabled: true, opacity: 1, transform: { ...IDENTITY_TRANSFORM }, params: defaultParams(meta) });
   return s;
+}
+
+/** 起動時のシーン: 保存した設定があれば復元する */
+function initialScene(): Scene {
+  const s = freshScene();
+  const saved = loadSettings();
+  if (!saved) return s;
+  return { ...s, background: { ...s.background, ...saved.background }, visualizers: saved.visualizers, effects: saved.effects };
 }
 
 function mapVisualizers(scene: Scene, fn: (v: VisualizerLayer) => VisualizerLayer): Scene {
@@ -167,5 +179,25 @@ export const useStore = create<State & Actions>((set) => ({
     })),
   setRange: (p) => set((s) => ({ scene: { ...s.scene, range: { ...s.scene.range, ...p } } })),
   setBackground: (p) => set((s) => ({ scene: { ...s.scene, background: { ...s.scene.background, ...p } } })),
+  resetSettings: () =>
+    set((s) => {
+      clearSettings();
+      const f = freshScene();
+      const bg = { ...s.scene.background, dim: f.background.dim, zoomPunch: f.background.zoomPunch, fadeIn: f.background.fadeIn, fadeOut: f.background.fadeOut };
+      return { scene: { ...s.scene, background: bg, visualizers: f.visualizers, effects: f.effects }, selectedLayerId: null };
+    }),
   patch: (p) => set(p),
 }));
+
+// 設定が変わったら少し待ってから保存する（スライダー操作中に何度も書き込まない）
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+useStore.subscribe((s, prev) => {
+  const a = s.scene;
+  const b = prev.scene;
+  if (a.background === b.background && a.visualizers === b.visualizers && a.effects === b.effects) return;
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    const cur = useStore.getState().scene;
+    saveSettings({ background: cur.background, visualizers: cur.visualizers, effects: cur.effects });
+  }, 300);
+});

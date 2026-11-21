@@ -114,7 +114,9 @@ export function VisualPanel() {
         </ul>
       </section>
 
-      <p className="rounded-lg bg-raised/60 px-3 py-2 text-xs leading-5 text-ink-muted">カードを押すと追加、もう一度押すと外れます。気軽に試してください。</p>
+      <p className="rounded-lg bg-raised/60 px-3 py-2 text-xs leading-5 text-ink-muted">
+        カードを押すと追加、もう一度押すと外れます。気軽に試してください。設定はこのブラウザに自動で保存され、次に開いたときに復元されます。
+      </p>
 
       <section>
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted">スペクトラム</h3>
@@ -169,6 +171,15 @@ export function VisualPanel() {
           ))}
         </div>
       </section>
+      <button
+        data-testid="reset-settings"
+        onClick={() => {
+          if (confirm("スペアナ・環境演出・エフェクトと、素材の調整（暗さ・ズーム・フェード）を初期状態に戻します。よろしいですか？")) useStore.getState().resetSettings();
+        }}
+        className="w-full rounded-lg border border-line px-3 py-1.5 text-xs text-ink-muted hover:border-bad hover:text-bad"
+      >
+        設定を初期状態に戻す
+      </button>
     </div>
   );
 }
