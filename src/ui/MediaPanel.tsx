@@ -133,6 +133,34 @@ export function MediaPanel() {
         </label>
         <label className="block text-sm">
           <span className="flex justify-between">
+            背景の倍率 <span className="font-mono text-xs text-ink-muted">{Math.round(bg.scale * 100)}%</span>
+          </span>
+          <input data-testid="bg-scale" type="range" min={0.5} max={3} step={0.05} value={bg.scale} onChange={(e) => setBackground({ scale: Number(e.target.value) })} className="w-full accent-[var(--color-accent-from)]" />
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block text-sm">
+            <span className="flex justify-between">
+              位置（横） <span className="font-mono text-xs text-ink-muted">{bg.panX.toFixed(2)}</span>
+            </span>
+            <input data-testid="bg-pan-x" type="range" min={-1} max={1} step={0.01} value={bg.panX} onChange={(e) => setBackground({ panX: Number(e.target.value) })} className="w-full accent-[var(--color-accent-from)]" />
+          </label>
+          <label className="block text-sm">
+            <span className="flex justify-between">
+              位置（縦） <span className="font-mono text-xs text-ink-muted">{bg.panY.toFixed(2)}</span>
+            </span>
+            <input data-testid="bg-pan-y" type="range" min={-1} max={1} step={0.01} value={bg.panY} onChange={(e) => setBackground({ panY: Number(e.target.value) })} className="w-full accent-[var(--color-accent-from)]" />
+          </label>
+        </div>
+        <button
+          data-testid="bg-fit-reset"
+          onClick={() => setBackground({ scale: 1, panX: 0, panY: 0 })}
+          className="w-full rounded-lg border border-line px-3 py-1 text-xs text-ink-muted hover:text-ink"
+        >
+          倍率と位置を元に戻す
+        </button>
+        <p className="text-[11px] leading-4 text-ink-muted">100% は画面いっぱい。小さくすると周りが黒、大きくすると位置で見せる場所を選べます。</p>
+        <label className="block text-sm">
+          <span className="flex justify-between">
             画面のフェードイン <span className="font-mono text-xs text-ink-muted">{bg.fadeIn.toFixed(1)} 秒</span>
           </span>
           <input data-testid="fade-in" type="range" min={0} max={5} step={0.1} value={bg.fadeIn} onChange={(e) => setBackground({ fadeIn: Number(e.target.value) })} className="w-full accent-[var(--color-accent-from)]" />

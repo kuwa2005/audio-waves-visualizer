@@ -23,6 +23,11 @@ export type BackgroundLayer = {
   dim: number;
   /** ビートで画像が一瞬ズームする強さ -1..1（マイナスはズームアウト） */
   zoomPunch: number;
+  /** 倍率 0.5〜3（1 = 画面を覆う大きさ） */
+  scale: number;
+  /** 位置 -1〜1（拡大してはみ出した範囲の中で動かす） */
+  panX: number;
+  panY: number;
   /** 画面全体が範囲の始まりで黒から現れる時間・終わりで黒へ消える時間（秒） */
   fadeIn: number;
   fadeOut: number;
@@ -129,7 +134,7 @@ export type Scene = {
 export function defaultScene(): Scene {
   return {
     aspect: "16:9",
-    background: { id: "background", kind: "background", images: {}, dim: 0.35, zoomPunch: 0.4, fadeIn: 0, fadeOut: 0 },
+    background: { id: "background", kind: "background", images: {}, dim: 0.35, zoomPunch: 0.4, scale: 1, panX: 0, panY: 0, fadeIn: 0, fadeOut: 0 },
     visualizers: [],
     effects: [],
     range: { start: 0, length: null },

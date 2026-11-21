@@ -1,7 +1,7 @@
 /**
  * 設定の保存と復元（ブラウザのローカルストレージ。端末の中だけに保存され、サーバーへは送らない）。
  *
- * 保存するもの: 素材の調整（暗さ・ビートでズーム・フェードイン・フェードアウト）、
+ * 保存するもの: 素材の調整（暗さ・ビートでズーム・背景の倍率と位置・フェードイン・フェードアウト）、
  *               スペアナ・環境演出のレイヤー、エフェクト（種類・設定値・表示・位置と大きさ・順番）
  * 保存しないもの: 音声・画像・字幕などの素材そのもの
  *
@@ -25,7 +25,7 @@ export const STORAGE_KEY = "awv.settings.v1";
 const VERSION = 1;
 
 export type SavedSettings = {
-  background: Pick<BackgroundLayer, "dim" | "zoomPunch" | "fadeIn" | "fadeOut">;
+  background: Pick<BackgroundLayer, "dim" | "zoomPunch" | "scale" | "panX" | "panY" | "fadeIn" | "fadeOut">;
   visualizers: VisualizerLayer[];
   effects: EffectLayer[];
 };
@@ -110,6 +110,9 @@ export function sanitizeSettings(raw: unknown): SavedSettings | null {
     background: {
       dim: numOr(bg.dim, 0.35, 0, 0.9),
       zoomPunch: numOr(bg.zoomPunch, 0.4, -1, 1),
+      scale: numOr(bg.scale, 1, 0.5, 3),
+      panX: numOr(bg.panX, 0, -1, 1),
+      panY: numOr(bg.panY, 0, -1, 1),
       fadeIn: numOr(bg.fadeIn, 0, 0, 5),
       fadeOut: numOr(bg.fadeOut, 0, 0, 5),
     },
@@ -131,7 +134,15 @@ export function loadSettings(storage: Pick<Storage, "getItem"> | null = safeStor
 export function serializeSettings(s: SavedSettings): string {
   return JSON.stringify({
     version: VERSION,
-    background: { dim: s.background.dim, zoomPunch: s.background.zoomPunch, fadeIn: s.background.fadeIn, fadeOut: s.background.fadeOut },
+    background: {
+      dim: s.background.dim,
+      zoomPunch: s.background.zoomPunch,
+      scale: s.background.scale,
+      panX: s.background.panX,
+      panY: s.background.panY,
+      fadeIn: s.background.fadeIn,
+      fadeOut: s.background.fadeOut,
+    },
     visualizers: s.visualizers.map(({ id, pluginId, enabled, opacity, transform, params }) => ({ id, pluginId, enabled, opacity, transform, params })),
     effects: s.effects.map(({ id, pluginId, enabled, params }) => ({ id, pluginId, enabled, params })),
   });

@@ -187,7 +187,8 @@ export const useStore = create<State & Actions>((set) => ({
     set((s) => {
       clearSettings();
       const f = freshScene();
-      const bg = { ...s.scene.background, dim: f.background.dim, zoomPunch: f.background.zoomPunch, fadeIn: f.background.fadeIn, fadeOut: f.background.fadeOut };
+      const fb = f.background;
+      const bg = { ...s.scene.background, dim: fb.dim, zoomPunch: fb.zoomPunch, scale: fb.scale, panX: fb.panX, panY: fb.panY, fadeIn: fb.fadeIn, fadeOut: fb.fadeOut };
       return { scene: { ...s.scene, background: bg, visualizers: f.visualizers, effects: f.effects }, selectedLayerId: null };
     }),
   setAutoDownload: (on) => {
