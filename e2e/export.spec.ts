@@ -39,7 +39,7 @@ for (const [aspect, w, h] of [
     await page.getByTestId("image-input").setInputFiles(images.map((f) => join(SAMPLE_DIR, f)));
     await expect(page.getByTestId("perf-bpm")).toBeVisible({ timeout: 60_000 });
 
-    // 画像のフェードイン 2 秒（素材タブ）
+    // 画面のフェードイン 2 秒（素材タブ）
     await page.getByTestId("fade-in").fill("2");
     await page.getByTestId(`aspect-${aspect}`).click();
     await page.getByTestId("step-visual").click();
@@ -89,6 +89,8 @@ for (const [aspect, w, h] of [
     const middle = luma(3);
     console.log(`[${aspect}] luma first=${first} middle=${middle}`);
     expect(first).toBeLessThan(middle * 0.6);
+    // 画面全体のフェードなので、先頭はスペアナ等も含めてほぼ真っ黒
+    expect(first).toBeLessThan(8);
 
     // 中間フレームを画像として取り出しておく（目視確認用）
     execFileSync("ffmpeg", ["-v", "error", "-y", "-ss", "2.5", "-i", out, "-frames:v", "1", test.info().outputPath(`frame-${aspect.replace(":", "x")}.png`)]);

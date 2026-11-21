@@ -88,17 +88,17 @@ export function MediaPanel() {
         </label>
         <label className="block text-sm">
           <span className="flex justify-between">
-            画像のフェードイン <span className="font-mono text-xs text-ink-muted">{bg.fadeIn.toFixed(1)} 秒</span>
+            画面のフェードイン <span className="font-mono text-xs text-ink-muted">{bg.fadeIn.toFixed(1)} 秒</span>
           </span>
           <input data-testid="fade-in" type="range" min={0} max={5} step={0.1} value={bg.fadeIn} onChange={(e) => setBackground({ fadeIn: Number(e.target.value) })} className="w-full accent-[var(--color-accent-from)]" />
         </label>
         <label className="block text-sm">
           <span className="flex justify-between">
-            画像のフェードアウト <span className="font-mono text-xs text-ink-muted">{bg.fadeOut.toFixed(1)} 秒</span>
+            画面のフェードアウト <span className="font-mono text-xs text-ink-muted">{bg.fadeOut.toFixed(1)} 秒</span>
           </span>
           <input data-testid="fade-out" type="range" min={0} max={5} step={0.1} value={bg.fadeOut} onChange={(e) => setBackground({ fadeOut: Number(e.target.value) })} className="w-full accent-[var(--color-accent-from)]" />
         </label>
-        <p className="text-[11px] leading-4 text-ink-muted">書き出す範囲（「書き出し」で設定）の始まりで黒から現れ、終わりで黒へ消えます。プレビューにも反映されます。</p>
+        <p className="text-[11px] leading-4 text-ink-muted">画面全体（背景・スペアナ・エフェクト・文字）が、書き出す範囲（「書き出し」で設定）の始まりで黒から現れ、終わりで黒へ消えます。プレビューにも反映されます。</p>
       </section>
     </div>
   );

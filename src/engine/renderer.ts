@@ -107,7 +107,7 @@ export class SceneRenderer {
       const r = resolveRange(scene.range, duration);
       fade = fadeFactor(t, r.start, r.end, bg.fadeIn, bg.fadeOut);
     }
-    this.background.render(ctx, W, H, bg, artwork, imgId, features, fade);
+    this.background.render(ctx, W, H, bg, artwork, imgId, features);
 
     const fc: FrameContext = {
       width: W,
@@ -147,6 +147,17 @@ export class SceneRenderer {
     if (scene.effects.length > 0) this.applyEffects(ctx, scene, fc, W, H);
     // 文字はエフェクトの後に描く（揺れ・ブラーで読みにくくならないように）
     this.text.render(ctx, scene, W, H, t, duration, features);
+
+    // 画面全体のフェードイン・アウト（背景・スペアナ・エフェクト・文字のすべてに黒を重ねる）
+    if (fade < 1) {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = 1 - fade;
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    }
   }
 
   private applyEffects(ctx: OffscreenCanvasRenderingContext2D, scene: Scene, fc: FrameContext, W: number, H: number): void {

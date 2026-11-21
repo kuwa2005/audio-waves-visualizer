@@ -23,7 +23,7 @@ export type BackgroundLayer = {
   dim: number;
   /** ビートで画像が一瞬ズームする強さ 0..1 */
   zoomPunch: number;
-  /** 範囲の始まりで黒から現れる時間・終わりで黒へ消える時間（秒） */
+  /** 画面全体が範囲の始まりで黒から現れる時間・終わりで黒へ消える時間（秒） */
   fadeIn: number;
   fadeOut: number;
 };
