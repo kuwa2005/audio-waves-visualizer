@@ -20,7 +20,7 @@ import { findMeta } from "../plugins/catalog";
 import { findEffectMeta } from "../plugins/effectCatalog";
 import { SUBTITLE_PARAMS, TITLE_PARAMS } from "../text/textCatalog";
 import type { Cue } from "../text/subtitles";
-import { clearSettings, loadSettings, saveSettings } from "./persist";
+import { clearSettings, loadAutoDownload, loadSettings, saveAutoDownload, saveSettings } from "./persist";
 import { defaultParams } from "../plugins/types";
 
 export type Step = "media" | "visual" | "text" | "export";
@@ -56,6 +56,8 @@ type State = {
   engineVersion: string | null;
   error: string | null;
   exportState: ExportState;
+  /** 書き出したら自動でダウンロードを開始する（このブラウザに保存） */
+  autoDownload: boolean;
 };
 
 type Actions = {
@@ -75,6 +77,7 @@ type Actions = {
   setRange(patch: Partial<ProgramRange>): void;
   /** 保存した設定を消し、素材の調整・レイヤー・エフェクトを初期状態に戻す（素材と文字はそのまま） */
   resetSettings(): void;
+  setAutoDownload(on: boolean): void;
   setTextParam(id: TextLayerId, key: string, value: ParamValue): void;
   setTextEnabled(id: TextLayerId, enabled: boolean): void;
   setSubtitles(cues: Cue[], fileName: string | null): void;
@@ -121,6 +124,7 @@ export const useStore = create<State & Actions>((set) => ({
   engineVersion: null,
   error: null,
   exportState: { state: "idle" },
+  autoDownload: loadAutoDownload(),
 
   setStep: (step) => set({ step }),
   setAspect: (aspect) => set((s) => ({ scene: { ...s.scene, aspect } })),
@@ -186,6 +190,10 @@ export const useStore = create<State & Actions>((set) => ({
       const bg = { ...s.scene.background, dim: f.background.dim, zoomPunch: f.background.zoomPunch, fadeIn: f.background.fadeIn, fadeOut: f.background.fadeOut };
       return { scene: { ...s.scene, background: bg, visualizers: f.visualizers, effects: f.effects }, selectedLayerId: null };
     }),
+  setAutoDownload: (on) => {
+    saveAutoDownload(on);
+    set({ autoDownload: on });
+  },
   patch: (p) => set(p),
 }));
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadSettings, sanitizeSettings, saveSettings, serializeSettings, STORAGE_KEY } from "./persist";
+import { loadAutoDownload, loadSettings, sanitizeSettings, saveAutoDownload, saveSettings, serializeSettings, STORAGE_KEY } from "./persist";
 
 const memory = () => {
   const m = new Map<string, string>();
@@ -67,5 +67,17 @@ describe("設定の保存と復元", () => {
       effects: [],
     });
     expect(json).not.toContain("images");
+  });
+});
+
+describe("自動ダウンロードの設定", () => {
+  it("defaults to yes and remembers no", () => {
+    const m = new Map<string, string>();
+    const store = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) };
+    expect(loadAutoDownload(store)).toBe(true);
+    saveAutoDownload(false, store);
+    expect(loadAutoDownload(store)).toBe(false);
+    saveAutoDownload(true, store);
+    expect(loadAutoDownload(store)).toBe(true);
   });
 });

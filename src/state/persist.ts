@@ -160,3 +160,22 @@ function safeStorage(): Storage | null {
     return null;
   }
 }
+
+const AUTO_DOWNLOAD_KEY = "awv.autoDownload";
+
+/** 書き出し後の自動ダウンロード（既定は「はい」） */
+export function loadAutoDownload(storage: Pick<Storage, "getItem"> | null = safeStorage()): boolean {
+  try {
+    return storage?.getItem(AUTO_DOWNLOAD_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+export function saveAutoDownload(on: boolean, storage: Pick<Storage, "setItem"> | null = safeStorage()): void {
+  try {
+    storage?.setItem(AUTO_DOWNLOAD_KEY, on ? "1" : "0");
+  } catch {
+    /* 保存できなくても動作は続ける */
+  }
+}

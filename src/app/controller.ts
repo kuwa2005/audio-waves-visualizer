@@ -61,6 +61,9 @@ function onWorkerMessage(msg: FromWorker): void {
           elapsedSec: r.elapsedSec,
         },
       });
+      // 「書き出したら自動でダウンロード」が「はい」なら、そのまま保存を始める
+      const done = useStore.getState().exportState;
+      if (useStore.getState().autoDownload && done.state === "done") startDownload(done.url, done.fileName);
       break;
     }
     case "exportError":
@@ -100,6 +103,17 @@ export async function loadDemo(): Promise<void> {
   } catch (e) {
     useStore.getState().patch({ error: `デモ素材を読み込めませんでした: ${String(e)}` });
   }
+}
+
+/** ブラウザのダウンロードを開始する */
+function startDownload(url: string, fileName: string): void {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 function pushTransport(): void {

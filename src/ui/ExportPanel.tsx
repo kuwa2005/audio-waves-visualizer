@@ -30,6 +30,8 @@ export function ExportPanel() {
   const track = useStore((s) => s.track);
   const aspect = useStore((s) => s.scene.aspect);
   const ex = useStore((s) => s.exportState);
+  const autoDownload = useStore((s) => s.autoDownload);
+  const setAutoDownload = useStore((s) => s.setAutoDownload);
   const [fps, setFps] = useState<30 | 60>(60);
   const [quality, setQuality] = useState<(typeof QUALITY_PRESETS)[number]["key"]>("high");
   const range = useStore((s) => s.scene.range);
@@ -209,6 +211,28 @@ export function ExportPanel() {
           )}
         </div>
       )}
+
+      <div className="flex items-center justify-between text-sm" data-testid="auto-download">
+        <span className="text-ink-muted">書き出したら自動でダウンロードを開始する</span>
+        <div className="flex shrink-0 rounded-lg bg-raised p-0.5" role="radiogroup" aria-label="書き出したら自動でダウンロードを開始する">
+          {([
+            [true, "はい"],
+            [false, "いいえ"],
+          ] as const).map(([v, label]) => (
+            <button
+              key={label}
+              role="radio"
+              aria-checked={autoDownload === v}
+              data-testid={`auto-download-${v ? "yes" : "no"}`}
+              disabled={running}
+              onClick={() => setAutoDownload(v)}
+              className={`rounded-md px-3 py-1 text-xs ${autoDownload === v ? "bg-surface shadow" : "text-ink-muted"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {!running && (
         <button

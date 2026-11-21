@@ -58,11 +58,19 @@ for (const [aspect, w, h] of [
     // 使われるコーデックが事前に表示され、AAC 以外なら警告が出る
     await expect(page.getByTestId("codec-info")).toBeVisible();
     await expect(page.getByTestId("codec-info")).toContainText("音声 AAC");
+    // 16:9 は「自動でダウンロード: はい（既定）」、9:16 は「いいえ」で手動ダウンロードを確認する
+    const auto = aspect === "16:9";
+    await expect(page.getByTestId("auto-download-yes")).toHaveAttribute("aria-checked", "true");
+    if (!auto) await page.getByTestId("auto-download-no").click();
+    const autoDownload = auto ? page.waitForEvent("download", { timeout: 200_000 }) : null;
     await page.getByTestId("export-start").click();
 
     await expect(page.getByTestId("export-done")).toBeVisible({ timeout: 200_000 });
     console.log(`[${aspect}]`, await page.getByTestId("export-done").innerText());
-    const [download] = await Promise.all([page.waitForEvent("download"), page.getByTestId("export-download").click()]);
+    const download = auto
+      ? await autoDownload!
+      : (await Promise.all([page.waitForEvent("download"), page.getByTestId("export-download").click()]))[0];
+    expect(download.suggestedFilename()).toMatch(/\.mp4$/);
     const out = test.info().outputPath(`export-${aspect.replace(":", "x")}.mp4`);
     await download.saveAs(out);
     expect(statSync(out).size).toBeGreaterThan(50_000);
