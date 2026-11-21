@@ -21,7 +21,7 @@ export type BackgroundLayer = {
   images: Partial<Record<Aspect, string>>;
   /** 暗さ 0..1 */
   dim: number;
-  /** ビートで画像が一瞬ズームする強さ 0..1 */
+  /** ビートで画像が一瞬ズームする強さ -1..1（マイナスはズームアウト） */
   zoomPunch: number;
   /** 画面全体が範囲の始まりで黒から現れる時間・終わりで黒へ消える時間（秒） */
   fadeIn: number;

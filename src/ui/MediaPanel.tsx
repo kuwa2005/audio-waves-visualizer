@@ -1,5 +1,5 @@
-import { useRef } from "react";
-import { loadFiles } from "../app/controller";
+import { useRef, useState } from "react";
+import { loadFiles, MEDIA_EXTENSIONS } from "../app/controller";
 import { useStore } from "../state/store";
 
 function formatTime(sec: number): string {
@@ -8,68 +8,108 @@ function formatTime(sec: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-/** 手順1: 素材（音声・背景画像）。ドラッグ＆ドロップは画面全体でも受け付ける */
+const ACCEPT = [...MEDIA_EXTENSIONS.audio, ...MEDIA_EXTENSIONS.image, ...MEDIA_EXTENSIONS.subtitle].map((e) => `.${e}`).join(",");
+
+/**
+ * 手順1: 素材。ドロップ（またはクリックして選択）の場所は 1 つだけで、拡張子で
+ * 音源・背景画像・字幕に振り分ける。画面全体へのドロップも同じ処理。
+ */
 export function MediaPanel() {
-  const audioRef = useRef<HTMLInputElement>(null);
-  const imageRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [over, setOver] = useState(false);
   const audioFile = useStore((s) => s.audioFile);
   const track = useStore((s) => s.track);
   const loading = useStore((s) => s.loading);
   const images = useStore((s) => s.imageFiles);
+  const subs = useStore((s) => s.scene.subtitles);
   const bg = useStore((s) => s.scene.background);
   const setBackground = useStore((s) => s.setBackground);
 
   return (
     <div className="space-y-5">
       <section>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted">音声</h3>
         <button
-          onClick={() => audioRef.current?.click()}
-          className="w-full rounded-xl border border-dashed border-line bg-raised/40 px-4 py-5 text-left transition hover:border-accent-from hover:bg-raised"
+          data-testid="media-drop"
+          onClick={() => inputRef.current?.click()}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setOver(true);
+          }}
+          onDragLeave={() => setOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setOver(false);
+            void loadFiles(e.dataTransfer.files);
+          }}
+          className={`flex w-full flex-col items-center gap-2 rounded-2xl border-2 border-dashed px-4 py-7 text-center transition ${
+            over ? "border-accent-to bg-accent-to/10" : "border-line bg-raised/40 hover:border-accent-from hover:bg-raised"
+          }`}
         >
-          <span className="block text-sm font-medium">{audioFile ? audioFile.name : "音声ファイルを選ぶ"}</span>
-          <span className="mt-1 block text-xs text-ink-muted">
-            {loading ?? (track ? `${formatTime(track.duration)} ・ ${track.bpm.toFixed(1)} BPM ・ ${track.beats.length} 拍` : "WAV / MP3 / M4A / FLAC など。ドロップでも可")}
+          <span className="accent-gradient flex h-10 w-10 items-center justify-center rounded-full text-lg text-white" aria-hidden>
+            ＋
+          </span>
+          <span className="text-sm font-semibold">ここにドロップ、またはクリックして選ぶ</span>
+          <span className="text-xs leading-5 text-ink-muted">
+            音源・背景画像・字幕をまとめて入れられます
+            <br />
+            拡張子で自動的に振り分けます
           </span>
         </button>
         <input
-          ref={audioRef}
-          data-testid="audio-input"
+          ref={inputRef}
+          data-testid="media-input"
           type="file"
-          accept="audio/*,.wav,.mp3,.m4a,.flac,.ogg,.srt,.vtt"
+          multiple
+          accept={ACCEPT}
           className="hidden"
-          onChange={(e) => e.target.files && loadFiles(e.target.files)}
+          onChange={(e) => {
+            if (e.target.files) void loadFiles(e.target.files);
+            e.target.value = ""; // 同じファイルをもう一度選べるように
+          }}
         />
       </section>
 
-      <section>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted">背景画像</h3>
-        <button
-          onClick={() => imageRef.current?.click()}
-          className="w-full rounded-xl border border-dashed border-line bg-raised/40 px-4 py-5 text-left transition hover:border-accent-from hover:bg-raised"
-        >
-          <span className="block text-sm font-medium">画像を選ぶ（複数可）</span>
-          <span className="mt-1 block text-xs text-ink-muted">16:9・9:16・1:1 用を自動で振り分けます</span>
-        </button>
-        <input
-          ref={imageRef}
-          data-testid="image-input"
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={(e) => e.target.files && loadFiles(e.target.files)}
-        />
-        {images.length > 0 && (
-          <ul className="mt-2 space-y-1 text-xs text-ink-muted">
-            {images.map((im) => (
-              <li key={im.id} className="flex justify-between gap-2">
-                <span className="truncate">{im.name}</span>
-                <span className="shrink-0 rounded bg-raised px-1.5">{im.aspect}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+      <section className="space-y-2 text-sm" data-testid="media-summary">
+        <div className="rounded-xl border border-line px-3 py-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-ink-muted">♪ 音源</span>
+            <span className="text-[10px] text-ink-muted">{MEDIA_EXTENSIONS.audio.slice(0, 5).join(" / ")} など</span>
+          </div>
+          <p className="mt-0.5 truncate" data-testid="media-audio">
+            {audioFile ? audioFile.name : <span className="text-ink-muted">未選択</span>}
+          </p>
+          {(loading || track) && (
+            <p className="text-xs text-ink-muted">{loading ?? `${formatTime(track!.duration)} ・ ${track!.bpm.toFixed(1)} BPM ・ ${track!.beats.length} 拍`}</p>
+          )}
+        </div>
+        <div className="rounded-xl border border-line px-3 py-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-ink-muted">▣ 背景画像</span>
+            <span className="text-[10px] text-ink-muted">16:9・9:16・1:1 を自動判定</span>
+          </div>
+          {images.length === 0 ? (
+            <p className="mt-0.5 text-ink-muted">未選択</p>
+          ) : (
+            <ul className="mt-0.5 space-y-0.5 text-xs" data-testid="media-images">
+              {images.map((im) => (
+                <li key={im.id} className="flex justify-between gap-2">
+                  <span className="truncate">{im.name}</span>
+                  <span className="shrink-0 rounded bg-raised px-1.5">{im.aspect}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="rounded-xl border border-line px-3 py-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-ink-muted">“” 字幕</span>
+            <span className="text-[10px] text-ink-muted">srt / vtt</span>
+          </div>
+          <p className="mt-0.5 truncate" data-testid="media-subs">
+            {subs.fileName ? `${subs.fileName}（${subs.cues.length} 件）` : <span className="text-ink-muted">未選択</span>}
+          </p>
+        </div>
       </section>
 
       <section className="space-y-3">
@@ -82,9 +122,14 @@ export function MediaPanel() {
         </label>
         <label className="block text-sm">
           <span className="flex justify-between">
-            ビートでズーム <span className="font-mono text-xs text-ink-muted">{Math.round(bg.zoomPunch * 100)}%</span>
+            ビートでズーム <span className="font-mono text-xs text-ink-muted">{bg.zoomPunch > 0 ? "+" : ""}{Math.round(bg.zoomPunch * 100)}%</span>
           </span>
-          <input type="range" min={0} max={1} step={0.05} value={bg.zoomPunch} onChange={(e) => setBackground({ zoomPunch: Number(e.target.value) })} className="w-full accent-[var(--color-accent-from)]" />
+          <input data-testid="zoom-punch" type="range" min={-1} max={1} step={0.05} value={bg.zoomPunch} onChange={(e) => setBackground({ zoomPunch: Number(e.target.value) })} className="w-full accent-[var(--color-accent-from)]" />
+          <span className="flex justify-between text-[10px] text-ink-muted">
+            <span>← ズームアウト</span>
+            <span>0</span>
+            <span>ズームイン →</span>
+          </span>
         </label>
         <label className="block text-sm">
           <span className="flex justify-between">

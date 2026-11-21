@@ -35,8 +35,8 @@ for (const [aspect, w, h] of [
 
     await page.goto("");
     await expect(page.getByTestId("perf-wasm")).toHaveText("OK", { timeout: 30_000 });
-    await page.getByTestId("audio-input").setInputFiles(join(SAMPLE_DIR, audio!));
-    await page.getByTestId("image-input").setInputFiles(images.map((f) => join(SAMPLE_DIR, f)));
+    // 1 つの素材エリアにまとめて入れる（拡張子で振り分け）
+    await page.getByTestId("media-input").setInputFiles([join(SAMPLE_DIR, audio!), ...images.map((f) => join(SAMPLE_DIR, f))]);
     await expect(page.getByTestId("perf-bpm")).toBeVisible({ timeout: 60_000 });
 
     // 画面のフェードイン 2 秒（素材タブ）

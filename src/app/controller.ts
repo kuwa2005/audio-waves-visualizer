@@ -195,14 +195,46 @@ export async function loadSubtitleFile(file: File): Promise<void> {
 }
 
 /** ドロップ・選択されたファイルを種類で振り分ける */
+export type MediaKind = "audio" | "image" | "subtitle" | null;
+
+/** 対応する拡張子（素材エリアの accept にも使う） */
+export const MEDIA_EXTENSIONS = {
+  audio: ["wav", "mp3", "m4a", "aac", "flac", "ogg", "oga", "opus"],
+  image: ["png", "jpg", "jpeg", "webp", "gif", "avif", "bmp"],
+  subtitle: ["srt", "vtt"],
+} as const;
+
+/** ファイルの種類を拡張子で判定する（拡張子が無いときだけ MIME タイプで判定） */
+export function mediaKind(name: string, mime = ""): MediaKind {
+  const ext = /\.([a-z0-9]+)$/i.exec(name)?.[1]?.toLowerCase();
+  if (ext) {
+    for (const k of ["audio", "image", "subtitle"] as const) if ((MEDIA_EXTENSIONS[k] as readonly string[]).includes(ext)) return k;
+    return null;
+  }
+  if (mime.startsWith("audio/")) return "audio";
+  if (mime.startsWith("image/")) return "image";
+  if (mime === "text/vtt" || mime === "application/x-subrip") return "subtitle";
+  return null;
+}
+
+/** ドロップ・選択されたファイルを拡張子で 背景画像・音源・字幕 に振り分ける（音源は最後の 1 つを使う） */
 export async function loadFiles(files: FileList | File[]): Promise<void> {
-  for (const f of Array.from(files)) {
-    if (/\.(srt|vtt)$/i.test(f.name)) {
-      await loadSubtitleFile(f);
-      continue;
-    }
-    if (f.type.startsWith("audio/") || /\.(wav|mp3|m4a|aac|flac|ogg|opus)$/i.test(f.name)) await loadAudio(f);
-    else if (f.type.startsWith("image/") || /\.(png|jpe?g|webp|gif|avif)$/i.test(f.name)) await loadImage(f);
+  const list = Array.from(files);
+  const skipped: string[] = [];
+  const audios: File[] = [];
+  for (const f of list) {
+    const kind = mediaKind(f.name, f.type);
+    if (kind === "image") await loadImage(f);
+    else if (kind === "subtitle") await loadSubtitleFile(f);
+    else if (kind === "audio") audios.push(f);
+    else skipped.push(f.name);
+  }
+  // 音源は解析に時間がかかるので最後に 1 つだけ読み込む
+  if (audios.length) await loadAudio(audios[audios.length - 1]);
+  if (skipped.length) {
+    useStore.getState().patch({
+      error: `対応していない形式のため読み込みませんでした: ${skipped.join("、")}（音源: ${MEDIA_EXTENSIONS.audio.join(" / ")}、画像: ${MEDIA_EXTENSIONS.image.join(" / ")}、字幕: srt / vtt）`,
+    });
   }
 }
 

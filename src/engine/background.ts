@@ -41,11 +41,13 @@ export class BackgroundRenderer {
       this.cacheKey = key;
     }
     const c = this.cache!;
+    // マイナスはズームアウト。最小 0.92 倍でも 1.1 倍のキャッシュなので端は見えない
     const zoom = 1 + layer.zoomPunch * (f.kick * 0.06 + f.bass * 0.02);
     const dw = (W * zoom * over);
     const dh = (H * zoom * over);
     ctx.drawImage(c, (W - dw) / 2, (H - dh) / 2, dw, dh);
-    const dim = Math.min(1, Math.max(0, layer.dim - f.kick * layer.zoomPunch * 0.15));
+    // ビートで少し明るくする（ズームイン・アウトどちらでも強さは絶対値）
+    const dim = Math.min(1, Math.max(0, layer.dim - f.kick * Math.abs(layer.zoomPunch) * 0.15));
     if (dim > 0) {
       ctx.globalAlpha = dim;
       ctx.fillStyle = "#000";

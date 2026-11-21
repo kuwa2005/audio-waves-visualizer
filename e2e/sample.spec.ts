@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 
@@ -27,8 +27,22 @@ test("素材を読み込み、解析・再生・比率切替・レイヤー追�
   await expect(classic).toHaveAttribute("href", "/visualizer-classic/");
   expect(await classic.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(220, 38, 38)");
 
-  await page.getByTestId("audio-input").setInputFiles(join(SAMPLE_DIR, audio!));
-  await page.getByTestId("image-input").setInputFiles(images.map((f) => join(SAMPLE_DIR, f)));
+  // 1 つの素材エリアに 音源・画像・字幕・対応外のファイル をまとめて入れる（拡張子で振り分け）
+  const srt = files.find((f) => /\.srt$/i.test(f));
+  // 大きな音源をデータで送ると遅いので、対応外のファイルも実ファイルにしてパスで渡す
+  const memo = test.info().outputPath("memo.txt");
+  writeFileSync(memo, "x");
+  await page.getByTestId("media-input").setInputFiles([
+    join(SAMPLE_DIR, audio!),
+    ...images.map((f) => join(SAMPLE_DIR, f)),
+    ...(srt ? [join(SAMPLE_DIR, srt)] : []),
+    memo,
+  ]);
+  await expect(page.getByTestId("media-images").locator("li")).toHaveCount(images.length);
+  if (srt) await expect(page.getByTestId("media-subs")).toContainText("件");
+  await expect(page.getByRole("alert")).toContainText("memo.txt");
+  await page.getByTestId("error-close").click();
+  await expect(page.getByRole("alert")).toHaveCount(0);
 
   // 解析結果（BPM）が出る
   await expect(page.getByTestId("perf-bpm")).toBeVisible({ timeout: 60_000 });

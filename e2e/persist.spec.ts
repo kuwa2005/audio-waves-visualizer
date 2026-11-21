@@ -9,6 +9,8 @@ test("素材の調整・レイヤー・エフェクトの設定が再読み込�
   await page.getByTestId("fade-in").fill("1.5");
   const dim = page.locator("label", { hasText: "暗さ" }).locator("input");
   await dim.fill("0.6");
+  // ビートでズームはマイナス（ズームアウト）も保存される
+  await page.getByTestId("zoom-punch").fill("-0.5");
 
   // レイヤーとエフェクトを追加して値を変える
   await page.getByTestId("step-visual").click();
@@ -22,6 +24,8 @@ test("素材の調整・レイヤー・エフェクトの設定が再読み込�
   await expect(page.getByTestId("perf-wasm")).toHaveText("OK", { timeout: 30_000 });
   await expect(page.getByTestId("fade-in")).toHaveValue("1.5");
   await expect(page.locator("label", { hasText: "暗さ" }).locator("input")).toHaveValue("0.6");
+  await expect(page.getByTestId("zoom-punch")).toHaveValue("-0.5");
+  await expect(page.locator("label", { hasText: "ビートでズーム" })).toContainText("-50%");
   await page.getByTestId("step-visual").click();
   await expect(page.getByTestId("add-mirror-ball")).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByTestId("add-neon-bars")).toHaveAttribute("aria-pressed", "true");

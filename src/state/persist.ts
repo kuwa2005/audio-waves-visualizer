@@ -109,7 +109,7 @@ export function sanitizeSettings(raw: unknown): SavedSettings | null {
   return {
     background: {
       dim: numOr(bg.dim, 0.35, 0, 0.9),
-      zoomPunch: numOr(bg.zoomPunch, 0.4, 0, 1),
+      zoomPunch: numOr(bg.zoomPunch, 0.4, -1, 1),
       fadeIn: numOr(bg.fadeIn, 0, 0, 5),
       fadeOut: numOr(bg.fadeOut, 0, 0, 5),
     },

@@ -355,3 +355,25 @@ describe("ビートへの感度", () => {
     expect(alphaFor(2)).toBeGreaterThan(alphaFor(1));
   });
 });
+
+import { mediaKind } from "../app/controller";
+
+describe("素材の振り分け（拡張子）", () => {
+  it.each([
+    ["song.WAV", "", "audio"],
+    ["a.mp3", "", "audio"],
+    ["a.m4a", "", "audio"],
+    ["bg.JPG", "", "image"],
+    ["bg.webp", "", "image"],
+    ["lyrics.srt", "", "subtitle"],
+    ["lyrics.vtt", "", "subtitle"],
+    ["memo.txt", "text/plain", null],
+    ["movie.mp4", "video/mp4", null],
+    ["noext", "audio/mpeg", "audio"],
+    ["noext", "image/png", "image"],
+  ])("%s (%s) → %s", (name, mime, kind) => expect(mediaKind(name, mime)).toBe(kind));
+  it("prefers the extension over a misleading MIME type", () => {
+    expect(mediaKind("lyrics.srt", "application/octet-stream")).toBe("subtitle");
+    expect(mediaKind("cover.png", "audio/mpeg")).toBe("image");
+  });
+});

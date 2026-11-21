@@ -115,8 +115,11 @@ export function App() {
           <PerfHud />
           {loading && <div className="glass absolute left-6 top-6 rounded-lg px-3 py-2 text-sm">{loading}</div>}
           {error && (
-            <div role="alert" className="absolute bottom-6 left-6 right-6 rounded-lg border border-bad/40 bg-bad/10 px-4 py-2 text-sm text-bad">
-              {error}
+            <div role="alert" className="absolute bottom-6 left-6 right-6 flex items-start gap-3 rounded-lg border border-bad/40 bg-bad/10 px-4 py-2 text-sm text-bad">
+              <span className="flex-1">{error}</span>
+              <button data-testid="error-close" onClick={() => useStore.getState().patch({ error: null })} className="shrink-0 rounded px-1 hover:bg-bad/20" aria-label="閉じる">
+                ✕
+              </button>
             </div>
           )}
           {dragging && (

@@ -46,6 +46,12 @@ describe("設定の保存と復元", () => {
     expect(s.effects[0].params).toMatchObject({ every: 1, color: "#123456", beatSens: 2 });
   });
 
+  it("keeps negative zoom (zoom out) within -1..1", () => {
+    const s = sanitizeSettings({ version: 1, background: { zoomPunch: -0.5 } })!;
+    expect(s.background.zoomPunch).toBe(-0.5);
+    expect(sanitizeSettings({ version: 1, background: { zoomPunch: -7 } })!.background.zoomPunch).toBe(-1);
+  });
+
   it("ignores broken or foreign data", () => {
     const store = memory();
     store.setItem(STORAGE_KEY, "{not json");
