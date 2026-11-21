@@ -1,0 +1,23 @@
+[package]
+name = "awv-core"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Audio Waves Visualizer の高速処理コア（音声解析・パーティクル・画素処理）"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+realfft = "3"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+
+[package.metadata.wasm-pack.profile.release]
+# SIMD128 を有効化（主要ブラウザは対応済み）
+wasm-opt = ["-O3", "--enable-simd", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]

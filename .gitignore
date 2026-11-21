@@ -1,0 +1,12 @@
+node_modules/
+dist/
+target/
+src/wasm/pkg/
+*.log
+.env
+.env.*
+!.env.example
+deploy.env
+.DS_Store
+test-results/
+playwright-report/

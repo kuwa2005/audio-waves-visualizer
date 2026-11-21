@@ -1,0 +1,19 @@
+# SharedArrayBuffer（スレッド間の共有メモリ）を有効にするためのクロスオリジン分離
+<IfModule mod_headers.c>
+  Header always set Cross-Origin-Opener-Policy "same-origin"
+  Header always set Cross-Origin-Embedder-Policy "require-corp"
+</IfModule>
+
+<IfModule mod_mime.c>
+  AddType application/wasm .wasm
+</IfModule>
+
+# ハッシュ付きアセットは長期キャッシュ
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|css|wasm|woff2)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  <FilesMatch "index\.html$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
