@@ -31,9 +31,13 @@ test("描画エンジンが起動し、WASM が動き、フレームが進む", 
   // SharedArrayBuffer 用のクロスオリジン分離が効いていること
   expect(await page.evaluate(() => crossOriginIsolated)).toBe(true);
 
-  // キャンバスに実際に何か描かれていること（単色ではない）
-  const png = await page.getByTestId("stage-canvas").screenshot();
-  expect(png.byteLength).toBeGreaterThan(5_000);
+  // 音声を読み込む前は無音: ビートの波動などで画面が定期的に変わらない
+  const shots: Buffer[] = [];
+  for (let i = 0; i < 4; i++) {
+    await page.waitForTimeout(300);
+    shots.push(await page.getByTestId("stage-canvas").screenshot());
+  }
+  for (let i = 1; i < shots.length; i++) expect(Buffer.compare(shots[i], shots[0])).toBe(0);
 
   await page.screenshot({ path: test.info().outputPath("app.png") });
   console.log("HUD:", (await page.getByTestId("perf-hud").innerText()).replace(/\n/g, " | "));

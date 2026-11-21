@@ -6,7 +6,7 @@
  *   時刻 t（再生位置から外挿）→ WASM で t のスペクトル → 事前解析から特徴量 → SceneRenderer で描画
  * 書き出しも同じ Worker・同じ SceneRenderer（別インスタンス）で行うので、プレビューと結果が一致する。
  */
-import init, { Analyzer, Track } from "../wasm/pkg/awv_core";
+import init, { Track } from "../wasm/pkg/awv_core";
 import { absNowMs, STOPPED, transportTime, type TransportState } from "./clock";
 import { ExportCancelled, runExport } from "./exporter";
 import { computeFeatures, emptyFeatures, type AudioFeatures, type TrackData } from "./features";
@@ -35,8 +35,8 @@ const images = new Map<string, ImageBitmap>();
 const perf = new PerfStats();
 let features: AudioFeatures = emptyFeatures();
 
-// 曲が読み込まれていないときのデモ用（合成信号）
-let idleAnalyzer: Analyzer | null = null;
+/** 曲が無いときに返す無音の波形 */
+let silence = new Float32Array(4096);
 // 読み込んだ曲
 let track: Track | null = null;
 let trackData: TrackData | null = null;
@@ -96,11 +96,8 @@ const env: RenderEnv = {
     return f32(track.magnitudes_ptr(), track.bin_count());
   },
   waveformAt(t: number, n: number): Float32Array {
-    if (!track) {
-      // 曲が無いときはデモ用の合成信号
-      const buf = f32(idleAnalyzer!.input_ptr(), IDLE_FFT);
-      return buf.subarray(0, Math.min(n, buf.length));
-    }
+    // 曲が無いときは無音
+    if (!track) return silence.length >= n ? silence.subarray(0, n) : (silence = new Float32Array(n));
     const len = trackLength;
     const start = Math.max(0, Math.min(len - n, Math.round(t * trackSampleRate - n / 2)));
     return f32(track.pcm_ptr(), len).subarray(start, start + Math.min(n, len));
@@ -112,39 +109,6 @@ const env: RenderEnv = {
     return track ? trackSampleRate : IDLE_SAMPLE_RATE;
   },
 };
-
-function idleSignal(buf: Float32Array, t: number): void {
-  const beat = (t * 2) % 1;
-  const kick = Math.exp(-beat * 8);
-  for (let i = 0; i < buf.length; i++) {
-    const s = t + i / IDLE_SAMPLE_RATE;
-    buf[i] =
-      0.8 * kick * Math.sin(2 * Math.PI * 55 * s) +
-      0.22 * Math.sin(2 * Math.PI * 440 * s) * (0.6 + 0.4 * Math.sin(t * 1.3)) +
-      0.15 * Math.sin(2 * Math.PI * 1320 * s) * (0.5 + 0.5 * Math.sin(t * 0.7)) +
-      0.06 * (1 - beat) * (Math.random() * 2 - 1);
-  }
-}
-
-function idleFeatures(t: number): AudioFeatures {
-  const a = idleAnalyzer!;
-  idleSignal(f32(a.input_ptr(), IDLE_FFT), t);
-  a.analyze();
-  const beat = (t * 2) % 1;
-  features.spectrum = f32(a.magnitudes_ptr(), a.bin_count());
-  features.kick = Math.exp(-beat * 7);
-  features.bass = Math.min(1, a.bass() * 3);
-  features.sub = Math.min(1, a.sub() * 3);
-  features.mid = Math.min(1, a.mid() * 6);
-  features.high = Math.min(1, a.high() * 12);
-  features.rms = features.bass;
-  features.onset = features.kick;
-  features.bpm = 120;
-  features.beatIndex = Math.floor(t * 2);
-  features.beatPhase = beat;
-  features.sinceBeat = beat / 2;
-  return features;
-}
 
 function frame(ts: number): void {
   if (!running) return;
@@ -162,7 +126,8 @@ function frame(ts: number): void {
     dt = 0;
   }
   lastT = t;
-  const f = track ? trackFeatures(t) : idleAnalyzer ? idleFeatures(t) : features;
+  // 曲が無いときは無音（ビートも無い）。時間で動く演出だけが動く
+  const f = track ? trackFeatures(t) : features;
   preview.render(ctx, scene, images, f, t, dt, env);
 
   perf.push(performance.now() - t0, interval);
@@ -252,8 +217,7 @@ self.onmessage = async (e: MessageEvent<ToWorker>) => {
           const out = await init();
           memory = out.memory;
           setWasmMemory(out.memory);
-          idleAnalyzer = new Analyzer(IDLE_FFT, IDLE_SAMPLE_RATE);
-          features = emptyFeatures(idleAnalyzer.bin_count());
+          features = emptyFeatures(IDLE_FFT / 2 + 1);
           wasm = true;
         } catch (err) {
           post({ type: "error", message: `WASM の読み込みに失敗: ${String(err)}` });
