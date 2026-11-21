@@ -310,24 +310,21 @@ export const sparkleMeta: PluginMeta = {
 
 /** ミラーボールの位置（出力ピクセル座標）。描画と当たり判定で共通 */
 export function mirrorBallLayout(p: ParamValues, W: number, H: number) {
-  const R = Math.min(W, H) * num(p, "size", 0.11);
+  const R = Math.min(W, H) * num(p, "size", 0.1);
   const cx = W * num(p, "x", 0.5);
-  const cy = H * num(p, "hang", 0.22);
+  const cy = H * num(p, "hang", 0.2);
   return { R, cx, cy };
 }
 
 export const mirrorBallMeta: PluginMeta = {
   id: "mirror-ball",
   name: "ミラーボール",
-  description: "80 年代ディスコの天井で回るミラーボール。部屋中に光の粒が流れ、ビートで輝く",
+  description: "80 年代ディスコの天井で回るミラーボール。複数のスポットライトの光がタイルごとに反射し、壁・床・天井を流れる",
   category: "ambient",
   params: [
-    { key: "size", label: "ボールの大きさ", type: "number", min: 0.04, max: 0.3, step: 0.005, default: 0.11 },
-    { key: "x", label: "位置（横）", type: "number", min: 0.05, max: 0.95, step: 0.01, default: 0.5 },
-    { key: "hang", label: "吊り下げの高さ", type: "number", min: 0.08, max: 0.6, step: 0.01, default: 0.22 },
-    { key: "speed", label: "回転速度", type: "number", min: 0, max: 1, step: 0.01, default: 0.12 },
-    { key: "spots", label: "光の粒の数", type: "number", min: 0, max: 500, step: 10, default: 180 },
-    { key: "spotSize", label: "光の粒の大きさ", type: "number", min: 0.3, max: 3, step: 0.05, default: 1 },
+    { key: "lights", label: "光源の数", type: "number", min: 1, max: 4, step: 1, default: 3 },
+    { key: "lightAngle", label: "光源の向き（回転）", type: "number", min: -180, max: 180, step: 1, default: 0, unit: "°" },
+    { key: "lightHeight", label: "光源の高さ", type: "number", min: -1, max: 1, step: 0.05, default: -0.4 },
     {
       key: "colors",
       label: "光の色",
@@ -335,12 +332,21 @@ export const mirrorBallMeta: PluginMeta = {
       default: "white",
       options: [
         { value: "white", label: "白（クラシック）" },
-        { value: "rainbow", label: "カラフル（カラーフィルター）" },
+        { value: "rainbow", label: "光源ごとに色を変える" },
         { value: "warm", label: "ゴールド" },
       ],
     },
+    { key: "size", label: "ボールの大きさ", type: "number", min: 0.04, max: 0.3, step: 0.005, default: 0.1 },
+    { key: "x", label: "位置（横）", type: "number", min: 0.05, max: 0.95, step: 0.01, default: 0.5 },
+    { key: "hang", label: "吊り下げの高さ", type: "number", min: 0.08, max: 0.6, step: 0.01, default: 0.2 },
+    { key: "speed", label: "回転速度", type: "number", min: 0, max: 1, step: 0.01, default: 0.08 },
+    { key: "wobble", label: "揺れ", type: "number", min: 0, max: 1, step: 0.05, default: 0.25 },
+    { key: "tiles", label: "タイルの細かさ", type: "number", min: 8, max: 26, step: 1, default: 16 },
+    { key: "amount", label: "光の粒の量", type: "number", min: 0.1, max: 1, step: 0.05, default: 0.6 },
+    { key: "spotSize", label: "光の粒の大きさ", type: "number", min: 0.3, max: 3, step: 0.05, default: 1 },
+    { key: "room", label: "部屋の広さ", type: "number", min: 0.5, max: 2, step: 0.05, default: 1 },
     { key: "beams", label: "光線", type: "number", min: 0, max: 1, step: 0.05, default: 0.35 },
-    { key: "darken", label: "部屋を暗くする", type: "number", min: 0, max: 0.9, step: 0.05, default: 0.35 },
+    { key: "darken", label: "部屋を暗くする", type: "number", min: 0, max: 0.9, step: 0.05, default: 0.4 },
     { key: "flash", label: "ビートで輝く", type: "number", min: 0, max: 1, step: 0.05, default: 0.6 },
   ],
   bounds(p, W, H) {

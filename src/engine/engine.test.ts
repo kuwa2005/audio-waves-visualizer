@@ -247,3 +247,50 @@ describe("描画（しずく）の発生", () => {
     expect(on.every((d) => 5 - d.birth < 1)).toBe(true);
   });
 });
+
+import { dot, hitRoom, lightDirections, makeRoom, reflect, rotateNormal, tileNormals, type Vec3 } from "../plugins/mirrorBall";
+
+describe("ミラーボールの反射", () => {
+  it("reflects by the mirror law", () => {
+    // 真上から来た光（-y 向き）を上向きの鏡で反射すると真上へ
+    expect(reflect([0, -1, 0], [0, 1, 0])).toEqual([0, 1, 0]);
+    // 45 度の鏡で直角に曲がる
+    const n: Vec3 = [Math.SQRT1_2, Math.SQRT1_2, 0];
+    const r = reflect([-1, 0, 0], n);
+    expect(r[0]).toBeCloseTo(0);
+    expect(r[1]).toBeCloseTo(1);
+  });
+
+  it("hits the right room surface", () => {
+    const room = makeRoom(1);
+    expect(hitRoom([0, -1, 0], room)!.n).toEqual([0, 1, 0]); // 床
+    expect(hitRoom([0, 0, -1], room)!.n).toEqual([0, 0, 1]); // 奥の壁
+    expect(hitRoom([0, 0, 1], room)).toBeNull(); // 手前（カメラの後ろ）
+  });
+
+  it("spots from different tiles and lights move in different directions", () => {
+    const room = makeRoom(1);
+    const lights = lightDirections(3, 0, -0.4);
+    const tiles = tileNormals(16);
+    const angles: number[] = [];
+    for (const tile of tiles) {
+      lights.forEach((l) => {
+        const at = (theta: number) => {
+          const n = rotateNormal(tile.n, theta, 0);
+          if (dot(n, l) <= 0.05) return null;
+          const hit = hitRoom(reflect([-l[0], -l[1], -l[2]], n), room);
+          if (!hit) return null;
+          const d = room.cam - hit.p[2];
+          return [hit.p[0] / d, -hit.p[1] / d];
+        };
+        const a = at(0);
+        const b = at(0.01);
+        if (a && b && Math.hypot(b[0] - a[0], b[1] - a[1]) > 1e-6) angles.push(Math.atan2(b[1] - a[1], b[0] - a[0]));
+      });
+    }
+    expect(angles.length).toBeGreaterThan(100);
+    // 動く向きが一方向に揃っていないこと（角度を 8 方位に分けて 4 方位以上に散らばる）
+    const bins = new Set(angles.map((a) => Math.floor(((a + Math.PI) / (2 * Math.PI)) * 8) % 8));
+    expect(bins.size).toBeGreaterThanOrEqual(4);
+  });
+});

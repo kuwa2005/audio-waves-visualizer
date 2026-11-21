@@ -41,6 +41,15 @@ test("全ビジュアライザー・全エフェクトがエラーなく描画�
         await page.getByTestId("stage").screenshot({ path: test.info().outputPath(`vis-drops-${v}.png`) });
       }
     }
+    if (meta.id === "mirror-ball") {
+      // 光源ごとに色を変えて、0.5 秒後と比べる（動きの確認用）
+      await page.getByTestId("inspector").locator("label", { hasText: "光の色" }).locator("select").selectOption("rainbow");
+      await page.getByTestId("inspector").locator("label", { hasText: "回転速度" }).locator("input").fill("0.3");
+      await page.waitForTimeout(500);
+      await page.getByTestId("stage").screenshot({ path: test.info().outputPath("vis-mirror-ball-a.png") });
+      await page.waitForTimeout(500);
+      await page.getByTestId("stage").screenshot({ path: test.info().outputPath("vis-mirror-ball-b.png") });
+    }
     if (meta.id === "starry-sky") {
       await page.getByTestId("inspector").locator("label", { hasText: "星の大きさ" }).locator("input").fill("3");
       await page.waitForTimeout(500);
