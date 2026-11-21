@@ -308,6 +308,47 @@ export const sparkleMeta: PluginMeta = {
   bounds: full,
 };
 
+/** ミラーボールの位置（出力ピクセル座標）。描画と当たり判定で共通 */
+export function mirrorBallLayout(p: ParamValues, W: number, H: number) {
+  const R = Math.min(W, H) * num(p, "size", 0.11);
+  const cx = W * num(p, "x", 0.5);
+  const cy = H * num(p, "hang", 0.22);
+  return { R, cx, cy };
+}
+
+export const mirrorBallMeta: PluginMeta = {
+  id: "mirror-ball",
+  name: "ミラーボール",
+  description: "80 年代ディスコの天井で回るミラーボール。部屋中に光の粒が流れ、ビートで輝く",
+  category: "ambient",
+  params: [
+    { key: "size", label: "ボールの大きさ", type: "number", min: 0.04, max: 0.3, step: 0.005, default: 0.11 },
+    { key: "x", label: "位置（横）", type: "number", min: 0.05, max: 0.95, step: 0.01, default: 0.5 },
+    { key: "hang", label: "吊り下げの高さ", type: "number", min: 0.08, max: 0.6, step: 0.01, default: 0.22 },
+    { key: "speed", label: "回転速度", type: "number", min: 0, max: 1, step: 0.01, default: 0.12 },
+    { key: "spots", label: "光の粒の数", type: "number", min: 0, max: 500, step: 10, default: 180 },
+    { key: "spotSize", label: "光の粒の大きさ", type: "number", min: 0.3, max: 3, step: 0.05, default: 1 },
+    {
+      key: "colors",
+      label: "光の色",
+      type: "select",
+      default: "white",
+      options: [
+        { value: "white", label: "白（クラシック）" },
+        { value: "rainbow", label: "カラフル（カラーフィルター）" },
+        { value: "warm", label: "ゴールド" },
+      ],
+    },
+    { key: "beams", label: "光線", type: "number", min: 0, max: 1, step: 0.05, default: 0.35 },
+    { key: "darken", label: "部屋を暗くする", type: "number", min: 0, max: 0.9, step: 0.05, default: 0.35 },
+    { key: "flash", label: "ビートで輝く", type: "number", min: 0, max: 1, step: 0.05, default: 0.6 },
+  ],
+  bounds(p, W, H) {
+    const { R, cx, cy } = mirrorBallLayout(p, W, H);
+    return { x: cx - R * 1.3, y: 0, w: R * 2.6, h: cy + R * 1.3 };
+  },
+};
+
 export const atmosphereMeta: PluginMeta = {
   id: "atmosphere",
   name: "空気感",
@@ -370,6 +411,7 @@ export const CATALOG: PluginMeta[] = [
   starrySkyMeta,
   sparkleMeta,
   dropsMeta,
+  mirrorBallMeta,
   atmosphereMeta,
   rainMeta,
   snowMeta,
