@@ -33,7 +33,7 @@ for (const [aspect, w, h] of [
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
 
-    await page.goto("");
+    await page.goto("?nosample");
     await expect(page.getByTestId("perf-wasm")).toHaveText("OK", { timeout: 30_000 });
     await page.getByTestId("audio-input").setInputFiles(join(SAMPLE_DIR, audio!));
     await page.getByTestId("image-input").setInputFiles(images.map((f) => join(SAMPLE_DIR, f)));

@@ -60,6 +60,16 @@ export class SceneRenderer {
       ctx.save();
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = "source-over";
+      const tr = layer.transform;
+      if (tr && (tr.x !== 0 || tr.y !== 0 || tr.scale !== 1)) {
+        // 自身の描画範囲の中心を基準に拡大し、移動する（当たり判定の transformRect と同じ計算）
+        const b = REGISTRY[layer.pluginId].bounds(layer.params, W, H);
+        const cx = b.x + b.w / 2;
+        const cy = b.y + b.h / 2;
+        ctx.translate(cx + tr.x * W, cy + tr.y * H);
+        ctx.scale(tr.scale, tr.scale);
+        ctx.translate(-cx, -cy);
+      }
       inst.render(ctx, fc, layer.params);
       ctx.restore();
     }

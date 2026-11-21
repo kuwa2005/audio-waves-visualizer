@@ -102,3 +102,26 @@ describe("export helpers", () => {
     ["1:75", null],
   ])("parseTime(%s) = %s", (text, v) => expect(parseTime(text)).toBe(v));
 });
+
+import { transformRect } from "./scene";
+import { neonBarsMeta, pulseRingMeta } from "../plugins/catalog";
+import { defaultParams } from "../plugins/types";
+
+describe("layer transform", () => {
+  it("identity keeps bounds", () => {
+    const b = { x: 10, y: 20, w: 100, h: 50 };
+    expect(transformRect(b, { x: 0, y: 0, scale: 1 }, 1920, 1080)).toEqual(b);
+  });
+  it("scales around own center and moves relative to output size", () => {
+    const r = transformRect({ x: 0, y: 0, w: 100, h: 100 }, { x: 0.1, y: -0.5, scale: 2 }, 1000, 200);
+    expect(r).toEqual({ x: 50, y: -150, w: 200, h: 200 });
+  });
+  it("plugins report sensible bounds", () => {
+    const bars = neonBarsMeta.bounds(defaultParams(neonBarsMeta), 1920, 1080);
+    expect(bars.w).toBe(1920);
+    expect(bars.y).toBeGreaterThan(0);
+    const ring = pulseRingMeta.bounds(defaultParams(pulseRingMeta), 1920, 1080);
+    expect(ring.x + ring.w / 2).toBe(960);
+    expect(ring.w).toBe(ring.h);
+  });
+});

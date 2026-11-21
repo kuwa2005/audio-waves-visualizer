@@ -1,5 +1,5 @@
 import type { AudioFeatures } from "../engine/features";
-import type { ParamValues } from "../engine/scene";
+import type { ParamValues, Rect } from "../engine/scene";
 
 /** パラメータ定義。インスペクターの UI はここから自動生成する */
 export type ParamDef =
@@ -14,6 +14,8 @@ export type PluginMeta = {
   name: string;
   description: string;
   params: ParamDef[];
+  /** 変形前の描画範囲（出力ピクセル座標）。移動・拡大の基準点と、マウスの当たり判定に使う */
+  bounds(params: ParamValues, W: number, H: number): Rect;
 };
 
 export type Ctx2D = OffscreenCanvasRenderingContext2D;

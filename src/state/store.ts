@@ -1,7 +1,18 @@
 import { create } from "zustand";
 import type { PerfSnapshot } from "../engine/perfStats";
 import type { ExportProgress } from "../engine/exportTypes";
-import { defaultScene, type Aspect, type BackgroundLayer, type ParamValue, type Scene, type VisualizerLayer } from "../engine/scene";
+import {
+  defaultScene,
+  IDENTITY_TRANSFORM,
+  SCALE_MAX,
+  SCALE_MIN,
+  type Aspect,
+  type BackgroundLayer,
+  type LayerTransform,
+  type ParamValue,
+  type Scene,
+  type VisualizerLayer,
+} from "../engine/scene";
 import { findMeta } from "../plugins/catalog";
 import { defaultParams } from "../plugins/types";
 
@@ -48,6 +59,7 @@ type Actions = {
   removeVisualizer(id: string): void;
   toggleVisualizer(id: string): void;
   setParam(layerId: string, key: string, value: ParamValue): void;
+  setTransform(layerId: string, patch: Partial<LayerTransform>): void;
   setBackground(patch: Partial<Omit<BackgroundLayer, "id" | "kind">>): void;
   patch(p: Partial<State>): void;
 };
@@ -58,7 +70,7 @@ const newLayerId = () => `vis-${Date.now().toString(36)}-${seq++}`;
 function initialScene(): Scene {
   const s = defaultScene();
   const meta = findMeta("neon-bars")!;
-  s.visualizers.push({ id: newLayerId(), kind: "visualizer", pluginId: meta.id, enabled: true, opacity: 1, params: defaultParams(meta) });
+  s.visualizers.push({ id: newLayerId(), kind: "visualizer", pluginId: meta.id, enabled: true, opacity: 1, transform: { ...IDENTITY_TRANSFORM }, params: defaultParams(meta) });
   return s;
 }
 
@@ -89,7 +101,7 @@ export const useStore = create<State & Actions>((set) => ({
     set((s) => {
       const meta = findMeta(pluginId);
       if (!meta) return {};
-      const layer: VisualizerLayer = { id: newLayerId(), kind: "visualizer", pluginId, enabled: true, opacity: 1, params: defaultParams(meta) };
+      const layer: VisualizerLayer = { id: newLayerId(), kind: "visualizer", pluginId, enabled: true, opacity: 1, transform: { ...IDENTITY_TRANSFORM }, params: defaultParams(meta) };
       return { scene: { ...s.scene, visualizers: [...s.scene.visualizers, layer] }, selectedLayerId: layer.id };
     }),
   removeVisualizer: (id) =>
@@ -100,6 +112,17 @@ export const useStore = create<State & Actions>((set) => ({
   toggleVisualizer: (id) => set((s) => ({ scene: mapVisualizers(s.scene, (v) => (v.id === id ? { ...v, enabled: !v.enabled } : v)) })),
   setParam: (layerId, key, value) =>
     set((s) => ({ scene: mapVisualizers(s.scene, (v) => (v.id === layerId ? { ...v, params: { ...v.params, [key]: value } } : v)) })),
+  setTransform: (layerId, patch) =>
+    set((s) => ({
+      scene: mapVisualizers(s.scene, (v) => {
+        if (v.id !== layerId) return v;
+        const t = { ...v.transform, ...patch };
+        t.scale = Math.min(SCALE_MAX, Math.max(SCALE_MIN, t.scale));
+        t.x = Math.min(1, Math.max(-1, t.x));
+        t.y = Math.min(1, Math.max(-1, t.y));
+        return { ...v, transform: t };
+      }),
+    })),
   setBackground: (p) => set((s) => ({ scene: { ...s.scene, background: { ...s.scene.background, ...p } } })),
   patch: (p) => set(p),
 }));

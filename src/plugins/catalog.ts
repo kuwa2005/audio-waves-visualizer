@@ -1,4 +1,4 @@
-import type { PluginMeta } from "./types";
+import { num, type PluginMeta } from "./types";
 
 /**
  * ビジュアライザーの一覧（メタ情報のみ）。UI はこれを使い、描画コードは Worker 側の registry が持つ。
@@ -18,6 +18,12 @@ export const neonBarsMeta: PluginMeta = {
     { key: "glow", label: "発光", type: "number", min: 0, max: 1, step: 0.05, default: 0.6 },
     { key: "mirror", label: "鏡像（下に反射）", type: "boolean", default: true },
   ],
+  bounds(p, W, H) {
+    const baseY = H * num(p, "y", 0.82);
+    const h = H * num(p, "height", 0.55);
+    const below = p.mirror !== false ? h * 0.35 * 1.05 : H * 0.02;
+    return { x: 0, y: baseY - h, w: W, h: h + below };
+  },
 };
 
 export const pulseRingMeta: PluginMeta = {
@@ -33,6 +39,11 @@ export const pulseRingMeta: PluginMeta = {
     { key: "shockwave", label: "衝撃波", type: "number", min: 0, max: 1, step: 0.05, default: 0.8 },
     { key: "rotate", label: "回転速度", type: "number", min: -1, max: 1, step: 0.05, default: 0.15 },
   ],
+  bounds(p, W, H) {
+    const m = Math.min(W, H);
+    const r = m * (num(p, "radius", 0.2) * 1.18 + num(p, "length", 0.22));
+    return { x: W / 2 - r, y: H / 2 - r, w: r * 2, h: r * 2 };
+  },
 };
 
 export const CATALOG: PluginMeta[] = [neonBarsMeta, pulseRingMeta];

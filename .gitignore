@@ -11,5 +11,3 @@ deploy.env
 test-results/
 playwright-report/
 
-# テスト用素材（ローカル専用、コミットしない）
-sample/

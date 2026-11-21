@@ -19,6 +19,7 @@ function onWorkerMessage(msg: FromWorker): void {
   switch (msg.type) {
     case "ready":
       st.patch({ wasm: msg.wasm, engineVersion: msg.version });
+      if (msg.wasm && shouldAutoloadDemo()) void loadDemo();
       break;
     case "perf":
       st.patch({ perf: msg.perf });
@@ -60,6 +61,40 @@ function onWorkerMessage(msg: FromWorker): void {
     case "exportError":
       st.patch({ exportState: { state: "error", message: msg.message, cancelled: msg.cancelled } });
       break;
+  }
+}
+
+/**
+ * 開発期間中は、起動時にデモ素材（public/sample/）を自動で読み込む。
+ * URL に ?nosample を付けると無効。開発期間が終わったら DEV_AUTOLOAD_DEMO を false にする。
+ */
+const DEV_AUTOLOAD_DEMO = true;
+const DEMO_FILES = ["demo.m4a", "demo-16x9.jpg", "demo-9x16.jpg", "demo-1x1.jpg"];
+let demoLoaded = false;
+
+function shouldAutoloadDemo(): boolean {
+  return DEV_AUTOLOAD_DEMO && !demoLoaded && !new URLSearchParams(location.search).has("nosample") && !useStore.getState().audioFile;
+}
+
+export async function loadDemo(): Promise<void> {
+  demoLoaded = true;
+  try {
+    const base = `${import.meta.env.BASE_URL}sample/`;
+    const files = await Promise.all(
+      DEMO_FILES.map(async (name) => {
+        const res = await fetch(base + name);
+        if (!res.ok) throw new Error(`${name}: HTTP ${res.status}`);
+        const blob = await res.blob();
+        // 表示名は元の曲名にする
+        const display = name.startsWith("demo.") ? "持ち帰るとは行ったけど（デモ）.m4a" : name;
+        return new File([blob], display, { type: blob.type });
+      }),
+    );
+    // 利用者が先に自分の素材を読み込んでいたら、デモで上書きしない
+    if (useStore.getState().audioFile) return;
+    await loadFiles(files);
+  } catch (e) {
+    useStore.getState().patch({ error: `デモ素材を読み込めませんでした: ${String(e)}` });
   }
 }
 

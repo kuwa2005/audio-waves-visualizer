@@ -194,9 +194,14 @@ async function startExport(msg: Extract<ToWorker, { type: "export" }>): Promise<
   }
 }
 
+// init 完了（WASM 読み込み）まで他のメッセージを待たせるための合図
+let resolveReady: () => void = () => {};
+const initialized = new Promise<void>((r) => (resolveReady = r));
+
 self.onmessage = async (e: MessageEvent<ToWorker>) => {
   const msg = e.data;
   try {
+    if (msg.type !== "init" && msg.type !== "cancelExport") await initialized;
     switch (msg.type) {
       case "init": {
         scene = msg.scene;
@@ -215,6 +220,7 @@ self.onmessage = async (e: MessageEvent<ToWorker>) => {
           post({ type: "error", message: `WASM の読み込みに失敗: ${String(err)}` });
         }
         post({ type: "ready", wasm, version: ENGINE_VERSION });
+        resolveReady();
         raf(frame);
         break;
       }
