@@ -327,7 +327,8 @@ describe("ビートへの感度", () => {
   it("is the first parameter of every ambient layer and every effect, and not on spectrum layers", () => {
     for (const m of CATALOG) {
       const has = m.params[0]?.key === "beatSens";
-      expect(has, m.id).toBe(m.category === "ambient");
+      // 音に反応しない演出（星空）には付けない
+      expect(has, m.id).toBe(m.category === "ambient" && m.beatReactive !== false);
     }
     for (const m of EFFECT_CATALOG) expect(m.params[0]?.key, m.id).toBe("beatSens");
     const def = EFFECT_CATALOG[0].params[0];

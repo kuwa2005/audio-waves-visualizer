@@ -296,7 +296,7 @@ export const spectrogramMeta: PluginMeta = {
 export const spaceMeta: PluginMeta = {
   id: "space",
   name: "宇宙空間",
-  description: "宇宙船で星の海を進むように、奥から星が光の筋になって流れてくる。ビートでワープ",
+  description: "宇宙船で星の海を進むように、奥から星が光の筋になって流れてくる。ビートで光の筋が伸びる（ワープ）",
   category: "ambient",
   params: [
     { key: "darken", label: "背景を暗くする", type: "number", min: 0, max: 1, step: 0.05, default: 0.75 },
@@ -316,12 +316,13 @@ export const spaceMeta: PluginMeta = {
 export const starrySkyMeta: PluginMeta = {
   id: "starry-sky",
   name: "星空",
-  description: "またたく星々と星雲の夜空。低音で星雲が脈打ち、ときどき流れ星",
+  description: "またたく星々と星雲の夜空。ときどき流れ星（音には反応しない静かな背景）",
   category: "ambient",
+  beatReactive: false,
   params: [
     { key: "darken", label: "背景を暗くする", type: "number", min: 0, max: 1, step: 0.05, default: 0.55 },
     { key: "stars", label: "星の数", type: "number", min: 100, max: 2000, step: 50, default: 900 },
-    { key: "starSize", label: "星の大きさ", type: "number", min: 0.3, max: 4, step: 0.05, default: 1, unit: "×" },
+    { key: "starSize", label: "明るい星（光のにじみ）の大きさ", type: "number", min: 0.1, max: 4, step: 0.05, default: 1, unit: "×" },
     { key: "nebula", label: "星雲の濃さ", type: "number", min: 0, max: 1, step: 0.05, default: 0.4 },
     { key: "hueA", label: "星雲の色 1", type: "color", default: "#7b3cff" },
     { key: "hueB", label: "星雲の色 2", type: "color", default: "#1fa8ff" },
@@ -555,7 +556,8 @@ export const CATALOG: PluginMeta[] = [
 ];
 
 // 環境演出には共通の「ビートへの感度」を先頭に付ける
-for (const m of CATALOG) if (m.category === "ambient" && !m.params.some((d) => d.key === BEAT_SENS_PARAM.key)) m.params.unshift(BEAT_SENS_PARAM);
+for (const m of CATALOG)
+  if (m.category === "ambient" && m.beatReactive !== false && !m.params.some((d) => d.key === BEAT_SENS_PARAM.key)) m.params.unshift(BEAT_SENS_PARAM);
 
 export function findMeta(id: string): PluginMeta | undefined {
   return CATALOG.find((m) => m.id === id);

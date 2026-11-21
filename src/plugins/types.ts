@@ -16,6 +16,8 @@ export type PluginMeta = {
   description: string;
   /** UI での分類（未指定はスペクトラム） */
   category?: "spectrum" | "ambient";
+  /** false なら音に反応しない演出（「ビートへの感度」を付けない） */
+  beatReactive?: boolean;
   params: ParamDef[];
   /** 変形前の描画範囲（出力ピクセル座標）。移動・拡大の基準点と、マウスの当たり判定に使う */
   bounds(params: ParamValues, W: number, H: number): Rect;

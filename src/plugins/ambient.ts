@@ -23,6 +23,64 @@ function hexToRgb(hex: string): [number, number, number] {
   return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
 }
 
+/**
+ * 星雲の画像（1/4 解像度）。回転しても縁が画面に入らないよう、画面の対角線より大きい正方形にし、
+ * さらに中心から外へ向かって透明にする（斜めの四角い縁が見えないように）。
+ */
+function makeNebula(W: number, H: number, ca: string, cb: string, seed: number, blobs: number, alphaScale: number): OffscreenCanvas {
+  const side = Math.ceil((Math.hypot(W, H) * 1.15) / 4);
+  const c = new OffscreenCanvas(side, side);
+  const g = c.getContext("2d")!;
+  g.globalCompositeOperation = "lighter";
+  const rnd = mulberry32(seed);
+  const [ar, ag, ab] = hexToRgb(ca);
+  const [br, bg, bb] = hexToRgb(cb);
+  const half = side / 2;
+  for (let i = 0; i < blobs; i++) {
+    // 中心付近（画面に映る範囲）に置く
+    const ang = rnd() * Math.PI * 2;
+    const dist = Math.sqrt(rnd()) * half * 0.55;
+    const x = half + Math.cos(ang) * dist;
+    const y = half + Math.sin(ang) * dist * (H / W);
+    const r = (0.1 + rnd() * 0.22) * side;
+    const m = rnd();
+    const col = `rgba(${Math.round(ar + (br - ar) * m)},${Math.round(ag + (bg - ag) * m)},${Math.round(ab + (bb - ab) * m)},`;
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, `${col}${(0.18 + rnd() * 0.15) * alphaScale})`);
+    gr.addColorStop(0.55, `${col}${(0.04 + rnd() * 0.04) * alphaScale})`);
+    gr.addColorStop(1, `${col}0)`);
+    g.fillStyle = gr;
+    g.fillRect(0, 0, side, side);
+  }
+  // 外側を透明にする
+  g.globalCompositeOperation = "destination-in";
+  const mask = g.createRadialGradient(half, half, half * 0.45, half, half, half);
+  mask.addColorStop(0, "rgba(0,0,0,1)");
+  mask.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = mask;
+  g.fillRect(0, 0, side, side);
+  return c;
+}
+
+/** 星雲を中心 (cx,cy) に回転して重ねる（画像は対角線より大きいので回しても縁は画面外） */
+function drawNebula(ctx: OffscreenCanvasRenderingContext2D, neb: OffscreenCanvas, cx: number, cy: number, rot: number, alpha: number): void {
+  const size = neb.width * 4;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = Math.min(1, alpha);
+  ctx.translate(cx, cy);
+  ctx.rotate(rot);
+  ctx.drawImage(neb, -size / 2, -size / 2, size, size);
+  ctx.restore();
+}
+
+/** 2 色の中間色 */
+function mixHex(a: string, b: string): string {
+  const [ar, ag, ab] = hexToRgb(a);
+  const [br, bg, bb] = hexToRgb(b);
+  return `rgb(${(ar + br) >> 1},${(ag + bg) >> 1},${(ab + bb) >> 1})`;
+}
+
 // ------------------------------------------------------------------ 宇宙空間
 
 const MAX_STARS = 3000;
@@ -64,7 +122,7 @@ export const space: VisualizerPlugin = {
           ctx.globalAlpha = 1;
         }
 
-        // 遠くの星雲（ほぼ動かない遠景。ゆっくり回転し、低音でわずかに明るく）
+        // 遠くの星雲（ほぼ動かない遠景。ゆっくり回転。ビートでは光らせない）
         const nebAmt = num(p, "nebula", 0.3);
         const ca = str(p, "hueA", "#5b2cff");
         const cb = str(p, "hueB", "#1f8fff");
@@ -72,34 +130,9 @@ export const space: VisualizerPlugin = {
           const key = `${W}x${H}:${ca}:${cb}`;
           if (key !== nebKey) {
             nebKey = key;
-            nebula = new OffscreenCanvas(Math.ceil(W / 4), Math.ceil(H / 4));
-            const g = nebula.getContext("2d")!;
-            g.globalCompositeOperation = "lighter";
-            const rnd = mulberry32(7);
-            const [ar, ag, ab] = hexToRgb(ca);
-            const [br, bg, bb] = hexToRgb(cb);
-            for (let i = 0; i < 18; i++) {
-              const x = (0.1 + rnd() * 0.8) * nebula.width;
-              const y = (0.1 + rnd() * 0.8) * nebula.height;
-              const r = (0.15 + rnd() * 0.3) * Math.max(nebula.width, nebula.height);
-              const m = rnd();
-              const col = `rgba(${Math.round(ar + (br - ar) * m)},${Math.round(ag + (bg - ag) * m)},${Math.round(ab + (bb - ab) * m)},`;
-              const gr = g.createRadialGradient(x, y, 0, x, y, r);
-              gr.addColorStop(0, `${col}${0.18 + rnd() * 0.15})`);
-              gr.addColorStop(0.55, `${col}${0.04 + rnd() * 0.04})`);
-              gr.addColorStop(1, `${col}0)`);
-              g.fillStyle = gr;
-              g.fillRect(0, 0, nebula.width, nebula.height);
-            }
+            nebula = makeNebula(W, H, ca, cb, 7, 18, 1);
           }
-          ctx.save();
-          ctx.globalCompositeOperation = "lighter";
-          ctx.globalAlpha = Math.min(1, nebAmt * (0.7 + f.bass * 0.3));
-          ctx.translate(cx, cy);
-          ctx.rotate(t * 0.004);
-          ctx.scale(1.3, 1.3);
-          ctx.drawImage(nebula!, -W / 2, -H / 2, W, H);
-          ctx.restore();
+          drawNebula(ctx, nebula!, cx, cy, t * 0.004, nebAmt);
         }
 
         // 星（3D → 2D 投影）。筋の長さ = 前の奥行き位置からの移動ぶん
@@ -144,10 +177,12 @@ export const space: VisualizerPlugin = {
           ctx.fillStyle = "#dfe9ff";
           ctx.fill(dots[lv]);
         }
-        // 進む先の淡い光（ワープで強く）
-        const g = Math.min(W, H) * (0.12 + warp * f.kick * 0.25);
-        ctx.globalAlpha = 0.15 + warp * f.kick * 0.5;
-        ctx.drawImage(sprites.tintedGlow("#9fc4ff"), cx - g, cy - g, g * 2, g * 2);
+        // 進む先の淡い光（星雲の色。黒なら見えない。ビートでは光らせない）
+        if (nebAmt > 0) {
+          const g = Math.min(W, H) * 0.12;
+          ctx.globalAlpha = 0.3 * nebAmt;
+          ctx.drawImage(sprites.tintedGlow(mixHex(ca, cb)), cx - g, cy - g, g * 2, g * 2);
+        }
         ctx.restore();
       },
     };
@@ -166,7 +201,7 @@ export const starrySky: VisualizerPlugin = {
     let nebKey = "";
     return {
       render(ctx, frame, p) {
-        const { width: W, height: H, t, features: f, sprites } = frame;
+        const { width: W, height: H, t, sprites } = frame; // 星空は音に反応しない
         const n = Math.min(MAX_SKY_STARS, Math.round(num(p, "stars", 900)));
         const drift = num(p, "drift", 0.25);
         const s = H / 1080;
@@ -181,49 +216,25 @@ export const starrySky: VisualizerPlugin = {
           ctx.globalAlpha = 1;
         }
 
-        // 星雲（1/4 解像度で一度だけ作り、拡大して重ねる）
-        const nebAmt = num(p, "nebula", 0.6);
+        // 星雲（ゆっくり回るだけ。ビートでは光らせない）
+        const nebAmt = num(p, "nebula", 0.4);
         const ca = str(p, "hueA", "#7b3cff");
         const cb = str(p, "hueB", "#1fa8ff");
         if (nebAmt > 0) {
           const key = `${W}x${H}:${ca}:${cb}`;
           if (key !== nebKey) {
             nebKey = key;
-            nebula = new OffscreenCanvas(Math.ceil(W / 4), Math.ceil(H / 4));
-            const g = nebula.getContext("2d")!;
-            g.globalCompositeOperation = "lighter";
-            const rnd = mulberry32(7);
-            const [ar, ag, ab] = hexToRgb(ca);
-            const [br, bg, bb] = hexToRgb(cb);
-            for (let i = 0; i < 22; i++) {
-              const x = (0.15 + rnd() * 0.7) * nebula.width;
-              const y = (0.15 + rnd() * 0.7) * nebula.height;
-              const r = (0.12 + rnd() * 0.3) * Math.max(nebula.width, nebula.height);
-              const m = rnd();
-              const col = `rgba(${Math.round(ar + (br - ar) * m)},${Math.round(ag + (bg - ag) * m)},${Math.round(ab + (bb - ab) * m)},`;
-              const gr = g.createRadialGradient(x, y, 0, x, y, r);
-              gr.addColorStop(0, `${col}${0.22 + rnd() * 0.2})`);
-              gr.addColorStop(0.5, `${col}${0.06 + rnd() * 0.06})`);
-              gr.addColorStop(1, `${col}0)`);
-              g.fillStyle = gr;
-              g.fillRect(0, 0, nebula.width, nebula.height);
-            }
+            nebula = makeNebula(W, H, ca, cb, 7, 22, 1.2);
           }
-          ctx.save();
-          ctx.globalCompositeOperation = "lighter";
-          ctx.globalAlpha = Math.min(1, nebAmt * (0.55 + f.bass * 0.45));
-          ctx.translate(W / 2 + Math.sin(t * 0.03) * W * 0.03, H / 2 + Math.cos(t * 0.021) * H * 0.03);
-          ctx.rotate(t * drift * 0.006);
-          ctx.scale(1.25 + f.bass * 0.04, 1.25 + f.bass * 0.04);
-          ctx.drawImage(nebula!, -W / 2, -H / 2, W, H);
-          ctx.restore();
+          drawNebula(ctx, nebula!, W / 2 + Math.sin(t * 0.03) * W * 0.03, H / 2 + Math.cos(t * 0.021) * H * 0.03, t * drift * 0.006, nebAmt);
         }
 
         // 星（明るさ 4 段階ごとに 1 パスで描く）
         ctx.save();
         ctx.globalCompositeOperation = "lighter";
         ctx.fillStyle = "#ffffff";
-        const twinkleBoost = 1 + f.high * 0.6;
+        // 星のまたたきは時間だけで決める（音には反応しない）
+        const twinkleBoost = 1;
         for (let level = 0; level < 4; level++) {
           ctx.beginPath();
           for (let i = 0; i < n; i++) {
@@ -233,7 +244,8 @@ export const starrySky: VisualizerPlugin = {
             if (Math.min(3, Math.floor(b * 4)) !== level) continue;
             const x = mod(R(i, 0) - t * drift * 0.012 * depth, 1) * W;
             const y = R(i, 1) * H;
-            const size = (0.8 + depth * 1.8) * s * starSize;
+            // 小さな星の点は「星の大きさ」に関係なく一定（最小にしても消えない）
+            const size = (0.8 + depth * 1.8) * s;
             ctx.rect(x, y, size, size);
           }
           ctx.globalAlpha = 0.2 + level * 0.25;
@@ -246,7 +258,8 @@ export const starrySky: VisualizerPlugin = {
           const tw = 0.5 + 0.5 * Math.sin(t * (1 + R(i, 3) * 3) + R(i, 4) * 6.283);
           const x = mod(R(i, 0) - t * drift * 0.012 * depth, 1) * W;
           const y = R(i, 1) * H;
-          const g = (10 + 18 * depth) * s * starSize * (0.8 + tw * 0.4 + f.kick * 0.3);
+          // 「星の大きさ」は光のにじみがかかった明るい星だけに効く
+          const g = (10 + 18 * depth) * s * starSize * (0.8 + tw * 0.4);
           ctx.globalAlpha = 0.35 + tw * 0.5;
           ctx.drawImage(sprites.tintedGlow(R(i, 4) < 0.5 ? "#bcd4ff" : "#ffe7c2"), x - g, y - g, g * 2, g * 2);
         }

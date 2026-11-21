@@ -69,9 +69,23 @@ test("全ビジュアライザー・全エフェクトがエラーなく描画�
       await page.getByTestId("stage").screenshot({ path: test.info().outputPath("vis-mirror-ball-b.png") });
     }
     if (meta.id === "starry-sky") {
-      await page.getByTestId("inspector").locator("label", { hasText: "星の大きさ" }).locator("input").fill("3");
+      const size = page.getByTestId("inspector").locator("label", { hasText: "明るい星" }).locator("input");
+      await size.fill("3");
       await page.waitForTimeout(500);
       await page.getByTestId("stage").screenshot({ path: test.info().outputPath("vis-starry-sky-big.png") });
+      // 最小にしても小さな星の点は残る
+      await size.fill("0.1");
+      await page.waitForTimeout(500);
+      await page.getByTestId("stage").screenshot({ path: test.info().outputPath("vis-starry-sky-min.png") });
+      await expect(page.getByTestId("inspector")).not.toContainText("ビートへの感度");
+    }
+    if (meta.id === "space") {
+      // 星雲の色を 2 色とも黒にすると、星雲も進む先の光も見えなくなる
+      const colors = page.getByTestId("inspector").locator('input[type="color"]');
+      await colors.nth(0).fill("#000000");
+      await colors.nth(1).fill("#000000");
+      await page.waitForTimeout(500);
+      await page.getByTestId("stage").screenshot({ path: test.info().outputPath("vis-space-black-nebula.png") });
     }
     if (meta.id === "turntable") {
       // 仕上げの切り替え
