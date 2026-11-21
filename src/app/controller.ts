@@ -5,6 +5,7 @@ import { guessAspect } from "../engine/scene";
 import { applyAudioFade, type ExportSettings } from "../engine/exportTypes";
 import { pickAudio } from "../engine/codecs";
 import { encodeAacWithFfmpeg, type PreEncodedAac } from "../audio/aacFallback";
+import { parseSubtitles } from "../text/subtitles";
 import { useStore } from "../state/store";
 
 /**
@@ -73,7 +74,7 @@ function onWorkerMessage(msg: FromWorker): void {
  * URL に ?nosample を付けると無効。開発期間が終わったら DEV_AUTOLOAD_DEMO を false にする。
  */
 const DEV_AUTOLOAD_DEMO = true;
-const DEMO_FILES = ["demo.m4a", "demo-16x9.jpg", "demo-9x16.jpg", "demo-1x1.jpg"];
+const DEMO_FILES = ["demo.m4a", "demo-16x9.jpg", "demo-9x16.jpg", "demo-1x1.jpg", "demo.srt"];
 let demoLoaded = false;
 
 function shouldAutoloadDemo(): boolean {
@@ -90,7 +91,7 @@ export async function loadDemo(): Promise<void> {
         if (!res.ok) throw new Error(`${name}: HTTP ${res.status}`);
         const blob = await res.blob();
         // 表示名は元の曲名にする
-        const display = name.startsWith("demo.") ? "持ち帰るとは行ったけど（デモ）.m4a" : name;
+        const display = name === "demo.m4a" ? "持ち帰るとは行ったけど（デモ）.m4a" : name === "demo.srt" ? "持ち帰るとは行ったけど（デモ）.srt" : name;
         return new File([blob], display, { type: blob.type });
       }),
     );
@@ -184,9 +185,23 @@ export async function loadImage(file: File): Promise<void> {
   }
 }
 
+/** 字幕ファイル（SRT / VTT）を読み込む */
+export async function loadSubtitleFile(file: File): Promise<void> {
+  const cues = parseSubtitles(await file.text());
+  if (cues.length === 0) {
+    useStore.getState().patch({ error: `字幕を読み取れませんでした（${file.name}）。SRT または WebVTT 形式か確認してください` });
+    return;
+  }
+  useStore.getState().setSubtitles(cues, file.name);
+}
+
 /** ドロップ・選択されたファイルを種類で振り分ける */
 export async function loadFiles(files: FileList | File[]): Promise<void> {
   for (const f of Array.from(files)) {
+    if (/\.(srt|vtt)$/i.test(f.name)) {
+      await loadSubtitleFile(f);
+      continue;
+    }
     if (f.type.startsWith("audio/") || /\.(wav|mp3|m4a|aac|flac|ogg|opus)$/i.test(f.name)) await loadAudio(f);
     else if (f.type.startsWith("image/") || /\.(png|jpe?g|webp|gif|avif)$/i.test(f.name)) await loadImage(f);
   }

@@ -6,7 +6,8 @@ export type ParamDef =
   | { key: string; label: string; type: "number"; min: number; max: number; step: number; default: number; unit?: string }
   | { key: string; label: string; type: "color"; default: string }
   | { key: string; label: string; type: "select"; options: { value: string; label: string }[]; default: string }
-  | { key: string; label: string; type: "boolean"; default: boolean };
+  | { key: string; label: string; type: "boolean"; default: boolean }
+  | { key: string; label: string; type: "text"; default: string; multiline?: boolean; placeholder?: string };
 
 /** UI・Worker 共通のメタ情報（描画コードを含まない） */
 export type PluginMeta = {

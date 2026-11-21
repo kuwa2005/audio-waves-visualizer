@@ -3,6 +3,7 @@ import type { AudioFeatures } from "./features";
 import { fadeFactor, OUTPUT_SIZE, pickBackgroundImage, resolveRange, type Scene } from "./scene";
 import { EFFECT_REGISTRY } from "../plugins/effects";
 import { REGISTRY } from "../plugins/registry";
+import { TextRenderer } from "../text/textRenderer";
 import type { EffectContext, EffectInstance, FrameContext, SpriteCache, VisualizerInstance } from "../plugins/types";
 
 /** 描画に必要な外部機能（プレビューと書き出しで同じものを渡す） */
@@ -25,6 +26,7 @@ export class SceneRenderer {
   private readonly effects = new Map<string, { pluginId: string; inst: EffectInstance }>();
   private readonly scratchCanvases: OffscreenCanvas[] = [];
   private readonly smallCanvases = new Map<string, OffscreenCanvas>();
+  private readonly text = new TextRenderer();
 
   constructor(private readonly sprites: SpriteCache) {}
 
@@ -142,7 +144,12 @@ export class SceneRenderer {
       ctx.restore();
     }
 
-    if (scene.effects.length === 0) return;
+    if (scene.effects.length > 0) this.applyEffects(ctx, scene, fc, W, H);
+    // 文字はエフェクトの後に描く（揺れ・ブラーで読みにくくならないように）
+    this.text.render(ctx, scene, W, H, t, duration, features);
+  }
+
+  private applyEffects(ctx: OffscreenCanvasRenderingContext2D, scene: Scene, fc: FrameContext, W: number, H: number): void {
     const fx: EffectContext = {
       ...fc,
       scratch: (i) => this.scratch(i, W, H),

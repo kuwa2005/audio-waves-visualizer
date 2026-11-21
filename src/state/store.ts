@@ -12,11 +12,14 @@ import {
   type LayerTransform,
   type ParamValue,
   type ProgramRange,
+  type TextLayerId,
   type Scene,
   type VisualizerLayer,
 } from "../engine/scene";
 import { findMeta } from "../plugins/catalog";
 import { findEffectMeta } from "../plugins/effectCatalog";
+import { SUBTITLE_PARAMS, TITLE_PARAMS } from "../text/textCatalog";
+import type { Cue } from "../text/subtitles";
 import { defaultParams } from "../plugins/types";
 
 export type Step = "media" | "visual" | "text" | "export";
@@ -69,6 +72,9 @@ type Actions = {
   setEffectParam(layerId: string, key: string, value: ParamValue): void;
   setBackground(patch: Partial<Omit<BackgroundLayer, "id" | "kind">>): void;
   setRange(patch: Partial<ProgramRange>): void;
+  setTextParam(id: TextLayerId, key: string, value: ParamValue): void;
+  setTextEnabled(id: TextLayerId, enabled: boolean): void;
+  setSubtitles(cues: Cue[], fileName: string | null): void;
   patch(p: Partial<State>): void;
 };
 
@@ -77,6 +83,8 @@ const newLayerId = () => `layer-${Date.now().toString(36)}-${seq++}`;
 
 function initialScene(): Scene {
   const s = defaultScene();
+  s.title.params = defaultParams({ params: TITLE_PARAMS });
+  s.subtitles.params = defaultParams({ params: SUBTITLE_PARAMS });
   const meta = findMeta("neon-bars")!;
   s.visualizers.push({ id: newLayerId(), kind: "visualizer", pluginId: meta.id, enabled: true, opacity: 1, transform: { ...IDENTITY_TRANSFORM }, params: defaultParams(meta) });
   return s;
@@ -121,16 +129,25 @@ export const useStore = create<State & Actions>((set) => ({
   setParam: (layerId, key, value) =>
     set((s) => ({ scene: mapVisualizers(s.scene, (v) => (v.id === layerId ? { ...v, params: { ...v.params, [key]: value } } : v)) })),
   setTransform: (layerId, patch) =>
-    set((s) => ({
-      scene: mapVisualizers(s.scene, (v) => {
-        if (v.id !== layerId) return v;
-        const t = { ...v.transform, ...patch };
+    set((s) => {
+      const clampT = (cur: LayerTransform) => {
+        const t = { ...cur, ...patch };
         t.scale = Math.min(SCALE_MAX, Math.max(SCALE_MIN, t.scale));
         t.x = Math.min(1, Math.max(-1, t.x));
         t.y = Math.min(1, Math.max(-1, t.y));
-        return { ...v, transform: t };
-      }),
-    })),
+        return t;
+      };
+      if (layerId === "title" || layerId === "subtitles") {
+        const L = s.scene[layerId];
+        return { scene: { ...s.scene, [layerId]: { ...L, transform: clampT(L.transform) } } };
+      }
+      return { scene: mapVisualizers(s.scene, (v) => (v.id === layerId ? { ...v, transform: clampT(v.transform) } : v)) };
+    }),
+  setTextParam: (id, key, value) =>
+    set((s) => ({ scene: { ...s.scene, [id]: { ...s.scene[id], params: { ...s.scene[id].params, [key]: value } } } })),
+  setTextEnabled: (id, enabled) => set((s) => ({ scene: { ...s.scene, [id]: { ...s.scene[id], enabled } } })),
+  setSubtitles: (cues, fileName) =>
+    set((s) => ({ scene: { ...s.scene, subtitles: { ...s.scene.subtitles, cues, fileName, enabled: cues.length > 0 ? true : s.scene.subtitles.enabled } } })),
   addEffect: (pluginId) =>
     set((s) => {
       const meta = findEffectMeta(pluginId);

@@ -36,7 +36,7 @@ export function MediaPanel() {
           ref={audioRef}
           data-testid="audio-input"
           type="file"
-          accept="audio/*,.wav,.mp3,.m4a,.flac,.ogg"
+          accept="audio/*,.wav,.mp3,.m4a,.flac,.ogg,.srt,.vtt"
           className="hidden"
           onChange={(e) => e.target.files && loadFiles(e.target.files)}
         />

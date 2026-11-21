@@ -67,6 +67,28 @@ export type VisualizerLayer = {
   params: ParamValues;
 };
 
+/** タイトル（文字は params.title / params.subtitle） */
+export type TitleLayer = {
+  id: "title";
+  kind: "title";
+  enabled: boolean;
+  transform: LayerTransform;
+  params: ParamValues;
+};
+
+/** 字幕 */
+export type SubtitleLayer = {
+  id: "subtitles";
+  kind: "subtitles";
+  enabled: boolean;
+  transform: LayerTransform;
+  params: ParamValues;
+  cues: { start: number; end: number; text: string }[];
+  fileName: string | null;
+};
+
+export type TextLayerId = "title" | "subtitles";
+
 /** 画面全体にかけるエフェクト（配列の順に適用） */
 export type EffectLayer = {
   id: string;
@@ -88,7 +110,7 @@ export function transformRect(b: Rect, tr: LayerTransform, W: number, H: number)
   return { x: cx - w / 2, y: cy - h / 2, w, h };
 }
 
-export type Layer = BackgroundLayer | VisualizerLayer | EffectLayer;
+export type Layer = BackgroundLayer | VisualizerLayer | EffectLayer | TitleLayer | SubtitleLayer;
 
 export type Scene = {
   aspect: Aspect;
@@ -99,6 +121,9 @@ export type Scene = {
   effects: EffectLayer[];
   /** 書き出し範囲 */
   range: ProgramRange;
+  /** 文字（いちばん手前に描く） */
+  title: TitleLayer;
+  subtitles: SubtitleLayer;
 };
 
 export function defaultScene(): Scene {
@@ -108,6 +133,8 @@ export function defaultScene(): Scene {
     visualizers: [],
     effects: [],
     range: { start: 0, length: null },
+    title: { id: "title", kind: "title", enabled: false, transform: { x: 0, y: 0, scale: 1 }, params: {} },
+    subtitles: { id: "subtitles", kind: "subtitles", enabled: true, transform: { x: 0, y: 0, scale: 1 }, params: {}, cues: [], fileName: null },
   };
 }
 

@@ -2,12 +2,27 @@ import { useEffect, useRef, useState } from "react";
 import { attachCanvas } from "../app/controller";
 import { IDENTITY_TRANSFORM, OUTPUT_SIZE, transformRect, type LayerTransform, type Rect } from "../engine/scene";
 import { findMeta } from "../plugins/catalog";
+import { subtitleBounds, titleBounds } from "../text/textCatalog";
 import { useStore } from "../state/store";
 
-/** 出力座標で、point を含む最前面のレイヤーを探す */
+/** 文字レイヤー（タイトル・字幕）の変形後の範囲 */
+function textRect(id: "title" | "subtitles"): Rect | null {
+  const { scene } = useStore.getState();
+  const { width: W, height: H } = OUTPUT_SIZE[scene.aspect];
+  const L = scene[id];
+  if (!L.enabled || (id === "subtitles" && scene.subtitles.cues.length === 0)) return null;
+  const b = id === "title" ? titleBounds(L.params, W, H) : subtitleBounds(L.params, W, H);
+  return transformRect(b, L.transform, W, H);
+}
+
+/** 出力座標で、point を含む最前面のレイヤーを探す（文字がいちばん手前） */
 function hitTest(px: number, py: number): string | null {
   const { scene } = useStore.getState();
   const { width: W, height: H } = OUTPUT_SIZE[scene.aspect];
+  for (const id of ["subtitles", "title"] as const) {
+    const r = textRect(id);
+    if (r && px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h) return id;
+  }
   for (let i = scene.visualizers.length - 1; i >= 0; i--) {
     const l = scene.visualizers[i];
     const meta = findMeta(l.pluginId);
@@ -16,6 +31,14 @@ function hitTest(px: number, py: number): string | null {
     if (px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h) return l.id;
   }
   return null;
+}
+
+/** レイヤー ID（ビジュアライザー・タイトル・字幕）の現在の変形 */
+function transformOf(id: string | null): LayerTransform | null {
+  if (!id) return null;
+  const { scene } = useStore.getState();
+  if (id === "title" || id === "subtitles") return scene[id].transform;
+  return scene.visualizers.find((v) => v.id === id)?.transform ?? null;
 }
 
 /**
@@ -34,6 +57,8 @@ export function Stage() {
   const aspect = useStore((s) => s.scene.aspect);
   const selectedId = useStore((s) => s.selectedLayerId);
   const selected = useStore((s) => s.scene.visualizers.find((v) => v.id === s.selectedLayerId));
+  // 文字レイヤーの変更でも枠を更新するため購読しておく
+  const textState = useStore((s) => (s.selectedLayerId === "title" || s.selectedLayerId === "subtitles" ? s.scene[s.selectedLayerId] : null));
   const { width: W, height: H } = OUTPUT_SIZE[aspect];
 
   useEffect(() => {
@@ -87,22 +112,28 @@ export function Stage() {
       const { px, py } = toOutput(e.clientX, e.clientY);
       const st = useStore.getState();
       const id = hitTest(px, py) ?? st.selectedLayerId;
-      const layer = st.scene.visualizers.find((v) => v.id === id);
-      if (!layer) return;
+      const tr = transformOf(id);
+      if (!id || !tr) return;
       e.preventDefault();
-      if (st.selectedLayerId !== layer.id) st.selectLayer(layer.id);
+      if (st.selectedLayerId !== id) st.selectLayer(id);
       setFocused(true);
-      st.setTransform(layer.id, { scale: layer.transform.scale * Math.exp(-e.deltaY * 0.0015) });
+      st.setTransform(id, { scale: tr.scale * Math.exp(-e.deltaY * 0.0015) });
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
   }, [W, H]);
 
   const selRect: Rect | null = (() => {
+    if (textState) return textRect(textState.id);
     if (!selected) return null;
     const meta = findMeta(selected.pluginId);
     return meta ? transformRect(meta.bounds(selected.params, W, H), selected.transform, W, H) : null;
   })();
+  const selLabel = textState
+    ? `${textState.id === "title" ? "タイトル" : "字幕"} ・ ${Math.round(textState.transform.scale * 100)}%`
+    : selected
+      ? `${findMeta(selected.pluginId)?.name} ・ ${Math.round(selected.transform.scale * 100)}%`
+      : "";
 
   return (
     <div ref={outerRef} className="flex h-full w-full items-center justify-center">
@@ -120,8 +151,7 @@ export function Stage() {
           setFocused(!!id);
           st.selectLayer(id);
           if (!id) return;
-          const layer = st.scene.visualizers.find((v) => v.id === id)!;
-          drag.current = { id, px, py, start: { ...layer.transform } };
+          drag.current = { id, px, py, start: { ...transformOf(id)! } };
           e.currentTarget.setPointerCapture(e.pointerId);
         }}
         onPointerMove={(e) => {
@@ -155,7 +185,7 @@ export function Stage() {
             }}
           >
             <span className="absolute -top-6 left-0 whitespace-nowrap rounded bg-accent-to/90 px-1.5 py-0.5 text-[11px] font-semibold text-black">
-              {findMeta(selected!.pluginId)?.name} ・ {Math.round(selected!.transform.scale * 100)}%
+              {selLabel}
             </span>
           </div>
         )}
