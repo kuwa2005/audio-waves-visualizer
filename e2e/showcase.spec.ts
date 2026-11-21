@@ -39,6 +39,10 @@ test("全ビジュアライザー・全エフェクトがエラーなく描画�
         await page.waitForTimeout(800);
         await page.getByTestId("stage").screenshot({ path: test.info().outputPath(`vis-turntable-${finish}.png`) });
       }
+      // ピクチャーレコード（盤面全体に画像）
+      await page.getByTestId("inspector").locator("label", { hasText: "画像の表示" }).locator("select").selectOption("full");
+      await page.waitForTimeout(800);
+      await page.getByTestId("stage").screenshot({ path: test.info().outputPath("vis-turntable-picture.png") });
     }
     // その場でもう一度押して外す
     await card.click();
