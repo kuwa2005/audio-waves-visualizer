@@ -222,6 +222,73 @@ export const graphicEqMeta: PluginMeta = {
   },
 };
 
+export const radialBarsMeta: PluginMeta = {
+  id: "radial-bars",
+  name: "サークルバー",
+  description: "円の周りに放射状のバー。中央で背景画像が回り、低音で脈打つ",
+  params: [
+    { key: "bars", label: "本数", type: "number", min: 32, max: 240, step: 4, default: 120 },
+    { key: "radius", label: "半径", type: "number", min: 0.08, max: 0.4, step: 0.01, default: 0.2 },
+    { key: "length", label: "バーの長さ", type: "number", min: 0.05, max: 0.5, step: 0.01, default: 0.2 },
+    { key: "hue", label: "色相", type: "number", min: 0, max: 360, step: 1, default: 190, unit: "°" },
+    { key: "hueRange", label: "色の幅", type: "number", min: 0, max: 360, step: 1, default: 140, unit: "°" },
+    { key: "art", label: "中央に背景画像", type: "boolean", default: true },
+    { key: "spin", label: "画像の回転", type: "number", min: -1, max: 1, step: 0.05, default: 0.15 },
+  ],
+  bounds(p, W, H) {
+    const m = Math.min(W, H);
+    const r = m * (num(p, "radius", 0.2) + num(p, "length", 0.2) * 1.1);
+    return { x: W / 2 - r, y: H / 2 - r, w: r * 2, h: r * 2 };
+  },
+};
+
+export const oscilloscopeMeta: PluginMeta = {
+  id: "oscilloscope",
+  name: "オシロスコープ",
+  description: "音の波形そのものを表示。蛍光の残像と目盛り付きの計測器風",
+  params: [
+    { key: "height", label: "振れ幅", type: "number", min: 0.05, max: 0.5, step: 0.01, default: 0.22 },
+    { key: "y", label: "位置（縦）", type: "number", min: 0.1, max: 0.9, step: 0.01, default: 0.5 },
+    { key: "window", label: "表示する長さ（ms）", type: "number", min: 5, max: 100, step: 1, default: 30 },
+    { key: "thickness", label: "線の太さ", type: "number", min: 1, max: 8, step: 0.5, default: 2.5 },
+    { key: "color", label: "色", type: "color", default: "#5dff8f" },
+    { key: "ghosts", label: "残像", type: "number", min: 0, max: 6, step: 1, default: 3 },
+    { key: "grid", label: "目盛り", type: "boolean", default: true },
+  ],
+  bounds(p, W, H) {
+    const cy = H * num(p, "y", 0.5);
+    const h = H * num(p, "height", 0.22) * 1.2;
+    return { x: 0, y: cy - h, w: W, h: h * 2 };
+  },
+};
+
+export const spectrogramMeta: PluginMeta = {
+  id: "spectrogram",
+  name: "スペクトログラム",
+  description: "時間（横）と周波数（縦）を色で表す。右から左へ流れる",
+  params: [
+    { key: "history", label: "表示する長さ（秒）", type: "number", min: 1, max: 12, step: 0.5, default: 5 },
+    { key: "top", label: "上端", type: "number", min: 0, max: 0.9, step: 0.01, default: 0.6 },
+    { key: "bottom", label: "下端", type: "number", min: 0.1, max: 1, step: 0.01, default: 1 },
+    {
+      key: "palette",
+      label: "配色",
+      type: "select",
+      default: "inferno",
+      options: [
+        { value: "inferno", label: "インフェルノ（黒→赤→黄）" },
+        { value: "ocean", label: "オーシャン（黒→青→白）" },
+        { value: "neon", label: "ネオン（紫→ピンク→シアン）" },
+      ],
+    },
+    { key: "opacity", label: "不透明度", type: "number", min: 0.1, max: 1, step: 0.05, default: 0.85 },
+  ],
+  bounds(p, W, H) {
+    const top = H * num(p, "top", 0.6);
+    return { x: 0, y: top, w: W, h: H * num(p, "bottom", 1) - top };
+  },
+};
+
 // ---- 環境演出（画面全体に重ねる雰囲気づくり） ----
 
 export const spaceMeta: PluginMeta = {
@@ -403,6 +470,62 @@ export const snowMeta: PluginMeta = {
   bounds: full,
 };
 
+export const sakuraMeta: PluginMeta = {
+  id: "sakura",
+  name: "桜吹雪",
+  description: "花びらがくるくると回りながら舞い散る",
+  category: "ambient",
+  params: [
+    { key: "amount", label: "花びらの量", type: "number", min: 10, max: 500, step: 10, default: 220 },
+    { key: "size", label: "大きさ", type: "number", min: 0.3, max: 3, step: 0.05, default: 1 },
+    { key: "speed", label: "落ちる速さ", type: "number", min: 0.1, max: 2, step: 0.05, default: 0.5 },
+    { key: "wind", label: "風", type: "number", min: -1, max: 1, step: 0.05, default: 0.35 },
+    { key: "color", label: "色", type: "color", default: "#ffc4d6" },
+  ],
+  bounds: full,
+};
+
+export const bubblesMeta: PluginMeta = {
+  id: "bubbles",
+  name: "シャボン玉",
+  description: "虹色に光るシャボン玉がゆらゆらと昇っていく。低音でふくらむ",
+  category: "ambient",
+  params: [
+    { key: "amount", label: "数", type: "number", min: 5, max: 150, step: 5, default: 40 },
+    { key: "size", label: "大きさ", type: "number", min: 0.3, max: 3, step: 0.05, default: 1 },
+    { key: "speed", label: "昇る速さ", type: "number", min: 0.1, max: 2, step: 0.05, default: 0.4 },
+    { key: "shine", label: "虹色の強さ", type: "number", min: 0, max: 1, step: 0.05, default: 0.7 },
+  ],
+  bounds: full,
+};
+
+export const laserMeta: PluginMeta = {
+  id: "laser",
+  name: "レーザーショー",
+  description: "画面下から伸びるレーザー光線。ビートごとに扇形・交差・スキャンへ切り替わる",
+  category: "ambient",
+  params: [
+    { key: "count", label: "本数", type: "number", min: 2, max: 24, step: 1, default: 10 },
+    {
+      key: "colors",
+      label: "色",
+      type: "select",
+      default: "green",
+      options: [
+        { value: "green", label: "グリーン" },
+        { value: "red", label: "レッド" },
+        { value: "blue", label: "ブルー" },
+        { value: "rainbow", label: "レインボー" },
+      ],
+    },
+    { key: "speed", label: "動きの速さ", type: "number", min: 0, max: 3, step: 0.05, default: 1 },
+    { key: "spread", label: "広がり", type: "number", min: 0.1, max: 1, step: 0.05, default: 0.7 },
+    { key: "every", label: "パターンが変わる拍数", type: "number", min: 1, max: 16, step: 1, default: 8 },
+    { key: "haze", label: "スモーク（光の筋の太さ）", type: "number", min: 0, max: 1, step: 0.05, default: 0.5 },
+  ],
+  bounds: full,
+};
+
 export const CATALOG: PluginMeta[] = [
   neonBarsMeta,
   lineSpectrumMeta,
@@ -413,6 +536,9 @@ export const CATALOG: PluginMeta[] = [
   lightningMeta,
   lineScapeMeta,
   turntableMeta,
+  radialBarsMeta,
+  oscilloscopeMeta,
+  spectrogramMeta,
   spaceMeta,
   starrySkyMeta,
   sparkleMeta,
@@ -421,6 +547,9 @@ export const CATALOG: PluginMeta[] = [
   atmosphereMeta,
   rainMeta,
   snowMeta,
+  sakuraMeta,
+  bubblesMeta,
+  laserMeta,
 ];
 
 export function findMeta(id: string): PluginMeta | undefined {

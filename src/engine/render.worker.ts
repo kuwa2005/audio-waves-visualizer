@@ -41,6 +41,7 @@ let idleAnalyzer: Analyzer | null = null;
 let track: Track | null = null;
 let trackData: TrackData | null = null;
 let trackSampleRate = IDLE_SAMPLE_RATE;
+let trackLength = 0;
 
 let lastFrameTs = 0;
 let lastPerfPost = 0;
@@ -93,6 +94,16 @@ const env: RenderEnv = {
     if (!track) return features.spectrum;
     track.spectrum_at(t);
     return f32(track.magnitudes_ptr(), track.bin_count());
+  },
+  waveformAt(t: number, n: number): Float32Array {
+    if (!track) {
+      // 曲が無いときはデモ用の合成信号
+      const buf = f32(idleAnalyzer!.input_ptr(), IDLE_FFT);
+      return buf.subarray(0, Math.min(n, buf.length));
+    }
+    const len = trackLength;
+    const start = Math.max(0, Math.min(len - n, Math.round(t * trackSampleRate - n / 2)));
+    return f32(track.pcm_ptr(), len).subarray(start, start + Math.min(n, len));
   },
   duration(): number {
     return track ? track.duration() : 0;
@@ -179,6 +190,7 @@ function loadTrack(pcm: Float32Array, sampleRate: number): void {
   trackData = null;
   const tr = new Track(sampleRate, pcm.length);
   trackSampleRate = sampleRate;
+  trackLength = pcm.length;
   f32(tr.pcm_ptr(), pcm.length).set(pcm);
   tr.analyze();
   track = tr;

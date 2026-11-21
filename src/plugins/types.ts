@@ -35,6 +35,8 @@ export type FrameContext = {
   sprites: SpriteCache;
   /** 任意の時刻のスペクトル（履歴表示用）。返り値は次の呼び出しで上書きされるので、必要ならコピーする */
   spectrumAt(t: number): Float32Array;
+  /** 時刻 t を中心とした n サンプルの波形（モノラル、-1..1）。返り値は読み取り専用のビュー */
+  waveformAt(t: number, n: number): Float32Array;
   /** 曲の長さ（秒）。曲が無ければ 0 */
   duration: number;
   /** サンプリングレート（Hz）。スペクトルの bin k の周波数 = k × sampleRate / ((spectrum.length − 1) × 2) */

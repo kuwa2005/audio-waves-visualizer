@@ -10,6 +10,8 @@ import type { EffectContext, EffectInstance, FrameContext, SpriteCache, Visualiz
 export type RenderEnv = {
   /** 任意の時刻のスペクトル */
   spectrumAt(t: number): Float32Array;
+  /** 時刻 t を中心とした n サンプルの波形 */
+  waveformAt(t: number, n: number): Float32Array;
   /** 曲の長さ（秒） */
   duration(): number;
   /** サンプリングレート（Hz） */
@@ -117,6 +119,7 @@ export class SceneRenderer {
       features,
       sprites: this.sprites,
       spectrumAt: env.spectrumAt,
+      waveformAt: env.waveformAt,
       duration: env.duration(),
       sampleRate: env.sampleRate(),
       artwork,

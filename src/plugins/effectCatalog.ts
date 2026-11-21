@@ -67,7 +67,44 @@ export const flashMeta: EffectMeta = {
   ],
 };
 
-export const EFFECT_CATALOG: EffectMeta[] = [bloomMeta, rgbShiftMeta, zoomBlurMeta, glitchMeta, shakeMeta, flashMeta];
+export const vignetteMeta: EffectMeta = {
+  id: "vignette",
+  name: "ビネット",
+  description: "画面の周辺を暗くして中央に視線を集める。低音で脈打つ",
+  params: [
+    { key: "strength", label: "強さ", type: "number", min: 0, max: 1, step: 0.05, default: 0.8 },
+    { key: "size", label: "明るい範囲", type: "number", min: 0.2, max: 1, step: 0.05, default: 0.55 },
+    { key: "pulse", label: "低音で脈打つ", type: "number", min: 0, max: 1, step: 0.05, default: 0.4 },
+    { key: "color", label: "色", type: "color", default: "#000000" },
+  ],
+};
+
+export const vhsMeta: EffectMeta = {
+  id: "vhs",
+  name: "VHS",
+  description: "ビデオテープ風。走査線・ノイズ・色のにじみ・トラッキングの乱れ",
+  params: [
+    { key: "scanlines", label: "走査線", type: "number", min: 0, max: 1, step: 0.05, default: 0.35 },
+    { key: "noise", label: "ノイズ", type: "number", min: 0, max: 1, step: 0.05, default: 0.25 },
+    { key: "bleed", label: "色のにじみ", type: "number", min: 0, max: 1, step: 0.05, default: 0.5 },
+    { key: "tracking", label: "トラッキングの乱れ", type: "number", min: 0, max: 1, step: 0.05, default: 0.4 },
+    { key: "osd", label: "「▶ PLAY」表示", type: "boolean", default: true },
+  ],
+};
+
+export const kaleidoscopeMeta: EffectMeta = {
+  id: "kaleidoscope",
+  name: "万華鏡",
+  description: "画面を鏡のように分割して並べる。ゆっくり回り、キックで回転が加速",
+  params: [
+    { key: "segments", label: "分割数", type: "number", min: 3, max: 16, step: 1, default: 8 },
+    { key: "spin", label: "回転速度", type: "number", min: -1, max: 1, step: 0.05, default: 0.1 },
+    { key: "zoom", label: "ズーム", type: "number", min: 1, max: 3, step: 0.05, default: 1 },
+    { key: "mix", label: "元の映像との混ざり具合", type: "number", min: 0, max: 1, step: 0.05, default: 1 },
+  ],
+};
+
+export const EFFECT_CATALOG: EffectMeta[] = [bloomMeta, rgbShiftMeta, zoomBlurMeta, glitchMeta, shakeMeta, flashMeta, vignetteMeta, vhsMeta, kaleidoscopeMeta];
 
 export function findEffectMeta(id: string): EffectMeta | undefined {
   return EFFECT_CATALOG.find((m) => m.id === id);

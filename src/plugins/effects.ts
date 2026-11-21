@@ -1,5 +1,6 @@
 import { bloomMeta, flashMeta, FLASH_MIN_INTERVAL, glitchMeta, rgbShiftMeta, shakeMeta, zoomBlurMeta } from "./effectCatalog";
 import { mulberry32, smoothNoise } from "./rng";
+import { kaleidoscope, vhs, vignette } from "./effectsMore";
 import { num, str, type EffectPlugin } from "./types";
 
 /**
@@ -225,4 +226,7 @@ export const EFFECT_REGISTRY: Record<string, EffectPlugin> = {
   [glitch.id]: glitch,
   [shake.id]: shake,
   [flash.id]: flash,
+  [vignette.id]: vignette,
+  [vhs.id]: vhs,
+  [kaleidoscope.id]: kaleidoscope,
 };

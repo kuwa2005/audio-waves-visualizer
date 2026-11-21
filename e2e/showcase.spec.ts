@@ -82,5 +82,16 @@ test("全ビジュアライザー・全エフェクトがエラーなく描画�
     await page.getByTestId("stage").screenshot({ path: test.info().outputPath(`fx-all-${i}.png`) });
   }
   console.log("all-fx", (await page.getByTestId("perf-hud").innerText()).replace(/\n/g, " | "));
+
+  // エフェクトを 1 つずつ単独で確認（全部外してから、付けて撮って外す）
+  for (const meta of EFFECT_CATALOG) await page.getByTestId(`add-fx-${meta.id}`).click();
+  await expect(page.getByTestId("effect-list").locator("li")).toHaveCount(0);
+  for (const meta of EFFECT_CATALOG) {
+    const card = page.getByTestId(`add-fx-${meta.id}`);
+    await card.click();
+    await page.waitForTimeout(700);
+    await page.getByTestId("stage").screenshot({ path: test.info().outputPath(`fx-${meta.id}.png`) });
+    await card.click();
+  }
   expect(errors).toEqual([]);
 });

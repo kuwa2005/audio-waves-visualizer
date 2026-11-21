@@ -294,3 +294,29 @@ describe("ミラーボールの反射", () => {
     expect(bins.size).toBeGreaterThanOrEqual(4);
   });
 });
+
+import { buildLut, triggerIndex } from "../plugins/spectrumMore";
+import { laserAngle } from "../plugins/ambientMore";
+import { CATALOG } from "../plugins/catalog";
+import { EFFECT_CATALOG } from "../plugins/effectCatalog";
+
+describe("追加プラグインの補助関数", () => {
+  it("oscilloscope triggers on a rising zero crossing", () => {
+    const buf = Float32Array.from([0.5, 0.2, -0.3, -0.1, 0.4, 0.8]);
+    expect(triggerIndex(buf, 6)).toBe(4);
+    expect(triggerIndex(Float32Array.from([1, 1, 1]), 3)).toBe(0);
+  });
+  it("color map spans dark to bright", () => {
+    const lut = buildLut("inferno");
+    expect(lut[0] + lut[1] + lut[2]).toBeLessThan(20);
+    expect(lut[255 * 3] + lut[255 * 3 + 1] + lut[255 * 3 + 2]).toBeGreaterThan(600);
+  });
+  it("laser patterns stay within the spread", () => {
+    for (let pat = 0; pat < 3; pat++)
+      for (let i = 0; i < 10; i++) expect(Math.abs(laserAngle(pat, i, 10, 3.3, 1, 0.7))).toBeLessThanOrEqual(0.7 * 1.2 + 1e-9);
+  });
+  it("catalog ids are unique", () => {
+    const ids = [...CATALOG.map((m) => m.id), ...EFFECT_CATALOG.map((m) => m.id)];
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});
