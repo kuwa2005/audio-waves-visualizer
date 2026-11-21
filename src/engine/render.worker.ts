@@ -1,124 +1,159 @@
 /// <reference lib="webworker" />
 /**
- * 描画 Worker（フェーズ1: 土台）。
- * - OffscreenCanvas + Canvas 2D でメインスレッドと独立して描画
- * - WASM の FFT 解析器を毎フレーム実行（現時点では合成テスト信号を入力）
- * - フレーム時間を計測して HUD 用に送信
+ * 描画 Worker。OffscreenCanvas + Canvas 2D でメインスレッドと独立して描画する。
  *
- * 描画は shadowBlur / ctx.filter を使わず、事前に作った発光スプライトの加算合成で光らせる。
+ * 1 フレームの流れ:
+ *   時刻 t（再生位置から外挿）→ WASM で t のスペクトル → 事前解析から特徴量 → 背景 → 各ビジュアライザー
+ * 描画内容は (シーン, 特徴量, t) だけで決まるので、書き出し（フェーズ3）でも同じ処理を使う。
  */
-import init, { Analyzer } from "../wasm/pkg/awv_core";
-import type { FromWorker, ToWorker } from "./protocol";
+import init, { Analyzer, Track } from "../wasm/pkg/awv_core";
+import { BackgroundRenderer } from "./background";
+import { absNowMs, STOPPED, transportTime, type TransportState } from "./clock";
+import { computeFeatures, emptyFeatures, type AudioFeatures, type TrackData } from "./features";
 import { PerfStats } from "./perfStats";
+import type { FromWorker, ToWorker } from "./protocol";
+import { OUTPUT_SIZE, pickBackgroundImage, type Scene } from "./scene";
+import { createSpriteCache } from "./sprites";
+import { REGISTRY } from "../plugins/registry";
+import type { FrameContext, SpriteCache, VisualizerInstance } from "../plugins/types";
 
-/** エンジンのバージョン（HUD・不具合報告で使う） */
-const ENGINE_VERSION = "0.1.1";
-const FFT_SIZE = 2048;
-const SAMPLE_RATE = 48000;
-const BAR_COUNT = 96;
+const ENGINE_VERSION = "0.2.0";
+const IDLE_SAMPLE_RATE = 48000;
+const IDLE_FFT = 2048;
 
 let ctx: OffscreenCanvasRenderingContext2D | null = null;
-let width = 0;
-let height = 0;
+let scene: Scene | null = null;
+let transport: TransportState = STOPPED;
 let running = true;
-let analyzer: Analyzer | null = null;
-let wasmMemory: WebAssembly.Memory | null = null;
-let glowSprite: OffscreenCanvas | null = null;
+let memory: WebAssembly.Memory | null = null;
+let sprites: SpriteCache | null = null;
+const background = new BackgroundRenderer();
+const images = new Map<string, ImageBitmap>();
+const instances = new Map<string, { pluginId: string; inst: VisualizerInstance }>();
 const perf = new PerfStats();
-const smoothed = new Float32Array(BAR_COUNT);
+let features: AudioFeatures = emptyFeatures();
+
+// 曲が読み込まれていないときのデモ用（合成信号）
+let idleAnalyzer: Analyzer | null = null;
+// 読み込んだ曲
+let track: Track | null = null;
+let trackData: TrackData | null = null;
+
 let lastFrameTs = 0;
 let lastPerfPost = 0;
-let synthPhase = 0;
+let lastT = 0;
 
-const post = (msg: FromWorker) => (self as unknown as DedicatedWorkerGlobalScope).postMessage(msg);
+const post = (msg: FromWorker, transfer: Transferable[] = []) =>
+  (self as unknown as DedicatedWorkerGlobalScope).postMessage(msg, transfer);
 
 const raf: (cb: (ts: number) => void) => void =
   typeof self.requestAnimationFrame === "function"
     ? (cb) => self.requestAnimationFrame(cb)
     : (cb) => setTimeout(() => cb(performance.now()), 1000 / 60);
 
-/** 発光用のスプライト（放射グラデーション）を一度だけ作る */
-function makeGlowSprite(size: number): OffscreenCanvas {
-  const c = new OffscreenCanvas(size, size);
-  const g = c.getContext("2d")!;
-  const grad = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  grad.addColorStop(0, "rgba(255,255,255,1)");
-  grad.addColorStop(0.25, "rgba(255,255,255,0.45)");
-  grad.addColorStop(1, "rgba(255,255,255,0)");
-  g.fillStyle = grad;
-  g.fillRect(0, 0, size, size);
-  return c;
+/** WASM メモリが拡張されると古いビューは無効になるので、使う直前に作る */
+function f32(ptr: number, len: number): Float32Array {
+  return new Float32Array(memory!.buffer, ptr, len);
 }
 
-/** テスト信号: キック（低音のパルス）+ 和音 + ハイハット風ノイズ。音声入力はフェーズ2で接続する。 */
-function fillTestSignal(buf: Float32Array, t: number): void {
-  const beat = (t * 2) % 1; // 120 BPM
+function refreshTrackViews(): void {
+  if (!track || !memory) return;
+  const frames = track.frames();
+  trackData = {
+    frames,
+    frameRate: track.frame_rate(),
+    centerOffset: track.center_offset(),
+    bpm: track.bpm(),
+    rms: f32(track.rms_ptr(), frames),
+    onset: f32(track.onset_ptr(), frames),
+    bands: f32(track.bands_ptr(), frames * 4),
+    beats: f32(track.beats_ptr(), track.beat_count()),
+  };
+}
+
+function idleSignal(buf: Float32Array, t: number): void {
+  const beat = (t * 2) % 1;
   const kick = Math.exp(-beat * 8);
   for (let i = 0; i < buf.length; i++) {
-    const s = synthPhase + i / SAMPLE_RATE;
+    const s = t + i / IDLE_SAMPLE_RATE;
     buf[i] =
       0.8 * kick * Math.sin(2 * Math.PI * 55 * s) +
-      0.25 * Math.sin(2 * Math.PI * 440 * s) +
-      0.18 * Math.sin(2 * Math.PI * 660 * s) +
-      0.1 * (1 - beat) * (Math.random() * 2 - 1);
+      0.22 * Math.sin(2 * Math.PI * 440 * s) * (0.6 + 0.4 * Math.sin(t * 1.3)) +
+      0.15 * Math.sin(2 * Math.PI * 1320 * s) * (0.5 + 0.5 * Math.sin(t * 0.7)) +
+      0.06 * (1 - beat) * (Math.random() * 2 - 1);
   }
-  synthPhase += 1 / 60;
+}
+
+function updateFeatures(t: number): void {
+  if (!memory) return;
+  if (track && trackData) {
+    track.spectrum_at(t);
+    if (trackData.rms.buffer !== memory.buffer) refreshTrackViews();
+    const spec = f32(track.magnitudes_ptr(), track.bin_count());
+    computeFeatures(trackData, t, spec, features);
+  } else if (idleAnalyzer) {
+    idleSignal(f32(idleAnalyzer.input_ptr(), IDLE_FFT), t);
+    idleAnalyzer.analyze();
+    const spec = f32(idleAnalyzer.magnitudes_ptr(), idleAnalyzer.bin_count());
+    const beat = (t * 2) % 1;
+    features.spectrum = spec;
+    features.kick = Math.exp(-beat * 7);
+    features.bass = Math.min(1, idleAnalyzer.bass() * 3);
+    features.sub = Math.min(1, idleAnalyzer.sub() * 3);
+    features.mid = Math.min(1, idleAnalyzer.mid() * 6);
+    features.high = Math.min(1, idleAnalyzer.high() * 12);
+    features.rms = features.bass;
+    features.onset = features.kick;
+    features.bpm = 120;
+    features.beatIndex = Math.floor(t * 2);
+    features.beatPhase = beat;
+    features.sinceBeat = beat / 2;
+  }
+}
+
+function instanceFor(layerId: string, pluginId: string): VisualizerInstance | null {
+  const cur = instances.get(layerId);
+  if (cur && cur.pluginId === pluginId) return cur.inst;
+  const plugin = REGISTRY[pluginId];
+  if (!plugin) return null;
+  const inst = plugin.create();
+  instances.set(layerId, { pluginId, inst });
+  return inst;
 }
 
 function frame(ts: number): void {
   if (!running) return;
   raf(frame);
-  if (!ctx) return;
+  if (!ctx || !scene || !sprites) return;
   const interval = lastFrameTs ? ts - lastFrameTs : 1000 / 60;
   lastFrameTs = ts;
   const t0 = performance.now();
 
-  let bass = 0;
-  if (analyzer && wasmMemory) {
-    const input = new Float32Array(wasmMemory.buffer, analyzer.input_ptr(), FFT_SIZE);
-    fillTestSignal(input, ts / 1000);
-    analyzer.analyze();
-    const mags = new Float32Array(wasmMemory.buffer, analyzer.magnitudes_ptr(), analyzer.bin_count());
-    bass = Math.min(1, analyzer.bass() * 3);
-    // 対数スケールでバーに割り当て
-    const maxBin = Math.floor(mags.length * 0.7);
-    for (let b = 0; b < BAR_COUNT; b++) {
-      const from = Math.max(1, Math.floor(Math.pow(maxBin, b / BAR_COUNT)));
-      const to = Math.max(from + 1, Math.floor(Math.pow(maxBin, (b + 1) / BAR_COUNT)));
-      let peak = 0;
-      for (let k = from; k < to; k++) if (mags[k] > peak) peak = mags[k];
-      const v = Math.min(1, Math.sqrt(peak) * 1.4);
-      smoothed[b] = v > smoothed[b] ? v : smoothed[b] * 0.88 + v * 0.12;
-    }
+  const hasTrack = !!track;
+  const t = hasTrack ? transportTime(transport, absNowMs()) : ts / 1000;
+  let dt = t - lastT;
+  if (dt < 0 || dt > 0.25) {
+    // シーク・巻き戻し: 平滑化や残像をリセット
+    for (const { inst } of instances.values()) inst.reset?.();
+    dt = 0;
   }
+  lastT = t;
+  updateFeatures(t);
 
-  // 背景
-  ctx.globalCompositeOperation = "source-over";
-  ctx.fillStyle = "#07080c";
-  ctx.fillRect(0, 0, width, height);
+  const { width: W, height: H } = OUTPUT_SIZE[scene.aspect];
+  const imgId = pickBackgroundImage(scene.background, scene.aspect);
+  background.render(ctx, W, H, scene.background, imgId ? images.get(imgId) : undefined, imgId, features);
 
-  // バー（加算合成で発光）
-  const baseY = height * 0.78;
-  const gap = width / BAR_COUNT;
-  const barW = gap * 0.55;
-  ctx.globalCompositeOperation = "lighter";
-  for (let b = 0; b < BAR_COUNT; b++) {
-    const h = smoothed[b] * height * 0.6;
-    const x = b * gap + (gap - barW) / 2;
-    const hue = 260 - (b / BAR_COUNT) * 80; // 紫 → シアン
-    ctx.fillStyle = `hsl(${hue} 90% 60%)`;
-    ctx.fillRect(x, baseY - h, barW, h);
-    if (glowSprite && h > 4) {
-      ctx.globalAlpha = 0.35 * smoothed[b];
-      ctx.drawImage(glowSprite, x - gap * 1.5, baseY - h - gap * 2, gap * 4, h + gap * 4);
-      ctx.globalAlpha = 1;
-    }
-  }
-  // 低音に合わせたフロアの光
-  if (glowSprite) {
-    ctx.globalAlpha = 0.25 + bass * 0.5;
-    ctx.drawImage(glowSprite, -width * 0.2, baseY - height * 0.15, width * 1.4, height * 0.3);
+  const fc: FrameContext = { width: W, height: H, t, dt, features, sprites };
+  for (const layer of scene.visualizers) {
+    if (!layer.enabled || layer.opacity <= 0) continue;
+    const inst = instanceFor(layer.id, layer.pluginId);
+    if (!inst) continue;
+    // 注: layer.opacity の反映はフェーズ4（レイヤー合成）で実装する
+    ctx.save();
     ctx.globalAlpha = 1;
+    inst.render(ctx, fc, layer.params);
+    ctx.restore();
   }
 
   perf.push(performance.now() - t0, interval);
@@ -128,22 +163,51 @@ function frame(ts: number): void {
   }
 }
 
+function applyCanvasSize(): void {
+  if (!ctx || !scene) return;
+  const { width, height } = OUTPUT_SIZE[scene.aspect];
+  if (ctx.canvas.width !== width || ctx.canvas.height !== height) {
+    ctx.canvas.width = width;
+    ctx.canvas.height = height;
+    background.invalidate();
+  }
+}
+
+function loadTrack(pcm: Float32Array, sampleRate: number): void {
+  if (!memory) throw new Error("WASM が初期化されていません");
+  const t0 = performance.now();
+  track?.free();
+  track = null;
+  trackData = null;
+  const tr = new Track(sampleRate, pcm.length);
+  f32(tr.pcm_ptr(), pcm.length).set(pcm);
+  tr.analyze();
+  track = tr;
+  refreshTrackViews();
+  for (const { inst } of instances.values()) inst.reset?.();
+  features = emptyFeatures(tr.bin_count());
+  const beats = new Float32Array(trackData!.beats); // コピーして送る
+  post(
+    { type: "trackInfo", info: { duration: tr.duration(), bpm: tr.bpm(), beats, analyzeMs: performance.now() - t0 } },
+    [beats.buffer],
+  );
+}
+
 self.onmessage = async (e: MessageEvent<ToWorker>) => {
   const msg = e.data;
   try {
     switch (msg.type) {
       case "init": {
-        width = msg.width;
-        height = msg.height;
-        msg.canvas.width = width;
-        msg.canvas.height = height;
+        scene = msg.scene;
         ctx = msg.canvas.getContext("2d", { alpha: false, desynchronized: true }) as OffscreenCanvasRenderingContext2D;
-        glowSprite = makeGlowSprite(128);
+        applyCanvasSize();
+        sprites = createSpriteCache();
         let wasm = false;
         try {
           const out = await init();
-          wasmMemory = out.memory;
-          analyzer = new Analyzer(FFT_SIZE, SAMPLE_RATE);
+          memory = out.memory;
+          idleAnalyzer = new Analyzer(IDLE_FFT, IDLE_SAMPLE_RATE);
+          features = emptyFeatures(idleAnalyzer.bin_count());
           wasm = true;
         } catch (err) {
           post({ type: "error", message: `WASM の読み込みに失敗: ${String(err)}` });
@@ -152,13 +216,23 @@ self.onmessage = async (e: MessageEvent<ToWorker>) => {
         raf(frame);
         break;
       }
-      case "resize":
-        width = msg.width;
-        height = msg.height;
-        if (ctx) {
-          ctx.canvas.width = width;
-          ctx.canvas.height = height;
-        }
+      case "scene": {
+        scene = msg.scene;
+        applyCanvasSize();
+        const ids = new Set(scene.visualizers.map((v) => v.id));
+        for (const id of instances.keys()) if (!ids.has(id)) instances.delete(id);
+        break;
+      }
+      case "transport":
+        transport = msg.transport;
+        break;
+      case "loadTrack":
+        loadTrack(msg.pcm, msg.sampleRate);
+        break;
+      case "image":
+        images.get(msg.id)?.close();
+        images.set(msg.id, msg.bitmap);
+        background.invalidate();
         break;
       case "setRunning":
         if (msg.running && !running) {

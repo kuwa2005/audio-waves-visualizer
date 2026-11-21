@@ -1,9 +1,12 @@
-import type { PerfSnapshot } from "../engine/perfStats";
+import { useStore } from "../state/store";
 
 const FRAME_BUDGET_MS = 1000 / 60;
 
 /** フレーム時間の表示。描画時間が予算の半分以内なら緑、予算内なら黄、超えたら赤 */
-export function PerfHud({ perf, wasm }: { perf: PerfSnapshot | null; wasm: boolean | null }) {
+export function PerfHud() {
+  const perf = useStore((s) => s.perf);
+  const wasm = useStore((s) => s.wasm);
+  const track = useStore((s) => s.track);
   const p95 = perf?.renderP95 ?? 0;
   const color = p95 < FRAME_BUDGET_MS / 2 ? "text-ok" : p95 < FRAME_BUDGET_MS ? "text-warn" : "text-bad";
   return (
@@ -23,6 +26,11 @@ export function PerfHud({ perf, wasm }: { perf: PerfSnapshot | null; wasm: boole
       <div>
         WASM <span data-testid="perf-wasm">{wasm === null ? "読込中" : wasm ? "OK" : "失敗"}</span>
       </div>
+      {track && (
+        <div>
+          BPM <span data-testid="perf-bpm">{track.bpm.toFixed(1)}</span> / 解析 {track.analyzeMs.toFixed(0)} ms
+        </div>
+      )}
     </div>
   );
 }

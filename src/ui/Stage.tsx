@@ -1,39 +1,31 @@
 import { useEffect, useRef } from "react";
-import { RenderHost } from "../engine/RenderHost";
-import type { FromWorker } from "../engine/protocol";
-
-export const OUTPUT_WIDTH = 1920;
-export const OUTPUT_HEIGHT = 1080;
+import { attachCanvas } from "../app/controller";
+import { OUTPUT_SIZE } from "../engine/scene";
+import { useStore } from "../state/store";
 
 /** プレビュー領域。描画はすべて Worker が行い、ここは表示枠だけを持つ */
-export function Stage({ onEngineMessage }: { onEngineMessage: (msg: FromWorker) => void }) {
+export function Stage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const handlerRef = useRef(onEngineMessage);
-  handlerRef.current = onEngineMessage;
+  const aspect = useStore((s) => s.scene.aspect);
+  const { width, height } = OUTPUT_SIZE[aspect];
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     if (!("transferControlToOffscreen" in canvas)) {
-      handlerRef.current({ type: "error", message: "このブラウザは OffscreenCanvas に対応していません" });
+      useStore.getState().patch({ error: "このブラウザは OffscreenCanvas に対応していません" });
       return;
     }
-    const host = new RenderHost(canvas, OUTPUT_WIDTH, OUTPUT_HEIGHT, (m) => handlerRef.current(m));
-    const onVisibility = () => host.send({ type: "setRunning", running: !document.hidden });
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      document.removeEventListener("visibilitychange", onVisibility);
-      host.dispose();
-    };
+    return attachCanvas(canvas);
   }, []);
 
   return (
-    <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-xl bg-black">
+    <div className="flex h-full w-full items-center justify-center">
       <canvas
         ref={canvasRef}
         data-testid="stage-canvas"
-        className="aspect-video max-h-full max-w-full"
-        style={{ width: "100%", height: "auto" }}
+        className="max-h-full max-w-full rounded-xl bg-black shadow-2xl shadow-black/50"
+        style={{ aspectRatio: `${width} / ${height}`, height: width >= height ? "auto" : "100%", width: width >= height ? "100%" : "auto" }}
       />
     </div>
   );

@@ -45,6 +45,26 @@ body {
   background-image: linear-gradient(135deg, var(--color-accent-from), var(--color-accent-to));
 }
 
+/* 旧版へのリンク: 赤で目立たせ、ゆっくり点滅（1 秒周期。光過敏に配慮して 3 回/秒未満） */
+.classic-link {
+  color: #fff;
+  background: #dc2626;
+  box-shadow: 0 0 12px rgb(220 38 38 / 0.7);
+  animation: classic-blink 1s steps(2, jump-none) infinite;
+}
+.classic-link:hover {
+  animation-play-state: paused;
+  background: #ef4444;
+}
+@keyframes classic-blink {
+  0% { opacity: 1; }
+  100% { opacity: 0.35; }
+}
+/* 「動きを減らす」設定の人には点滅させない（赤色はそのまま） */
+@media (prefers-reduced-motion: reduce) {
+  .classic-link { animation: none; }
+}
+
 .glass {
   background: color-mix(in srgb, var(--color-surface) 82%, transparent);
   backdrop-filter: blur(12px);

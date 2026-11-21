@@ -34,7 +34,7 @@ describe("computeFeatures", () => {
     rms: Float32Array.from({ length: frames }, (_, i) => i / 10),
     onset: new Float32Array(frames),
     bands: Float32Array.from({ length: frames * 4 }, (_, i) => (i % 4 === 1 ? Math.floor(i / 4) / 10 : 0)),
-    beats: Float32Array.from([0.2, 0.7]),
+    beats: Float32Array.from([0.25, 0.75]), // float32 で誤差が出ない値
   };
   const spec = new Float32Array(8);
 
@@ -47,13 +47,13 @@ describe("computeFeatures", () => {
     const before = computeFeatures(track, 0.1, spec, emptyFeatures(8));
     expect(before.beatIndex).toBe(-1);
     expect(before.kick).toBe(0);
-    const onBeat = computeFeatures(track, 0.2, spec, emptyFeatures(8));
+    const onBeat = computeFeatures(track, 0.25, spec, emptyFeatures(8));
     expect(onBeat.beatIndex).toBe(0);
     expect(onBeat.kick).toBeCloseTo(1);
-    const mid = computeFeatures(track, 0.45, spec, emptyFeatures(8));
+    const mid = computeFeatures(track, 0.5, spec, emptyFeatures(8));
     expect(mid.beatPhase).toBeCloseTo(0.5);
     // 最後の拍の後は BPM から次の拍を推定
-    const after = computeFeatures(track, 0.95, spec, emptyFeatures(8));
+    const after = computeFeatures(track, 1.0, spec, emptyFeatures(8));
     expect(after.beatIndex).toBe(1);
     expect(after.beatPhase).toBeCloseTo(0.5);
   });

@@ -1,100 +1,131 @@
-import { useCallback, useState } from "react";
-import type { FromWorker } from "../engine/protocol";
-import type { PerfSnapshot } from "../engine/perfStats";
+import { useState } from "react";
+import { loadFiles } from "../app/controller";
+import type { Aspect } from "../engine/scene";
+import { useStore, type Step } from "../state/store";
+import { Inspector } from "./Inspector";
+import { MediaPanel } from "./MediaPanel";
 import { PerfHud } from "./PerfHud";
 import { Stage } from "./Stage";
+import { Timeline } from "./Timeline";
+import { VisualPanel } from "./VisualPanel";
 
 /** 旧版（Music Waves Visualizer 最終版）の公開先 */
 const CLASSIC_URL = "/visualizer-classic/";
 
-const STEPS = [
-  { key: "media", label: "素材", hint: "音声・画像・動画" },
+const STEPS: { key: Step; label: string; hint: string }[] = [
+  { key: "media", label: "素材", hint: "音声・画像" },
   { key: "visual", label: "ビジュアル", hint: "スペアナ・エフェクト" },
   { key: "text", label: "テキスト", hint: "タイトル・字幕" },
   { key: "export", label: "書き出し", hint: "MP4" },
-] as const;
+];
+
+const ASPECTS: Aspect[] = ["16:9", "9:16", "1:1"];
+
+function StepContent({ step }: { step: Step }) {
+  if (step === "media") return <MediaPanel />;
+  if (step === "visual") return <VisualPanel />;
+  return <p className="text-sm text-ink-muted">この機能は今後のフェーズで実装します。</p>;
+}
 
 /**
- * アプリの骨組み（フェーズ1）。
- * 左: 作業ステップ / 中央: プレビュー / 右: インスペクター / 下: タイムライン
- * 各パネルの中身はフェーズ4以降で実装する。
+ * 画面構成: 上 = ヘッダー / 左 = 作業ステップと内容 / 中央 = プレビュー / 右 = インスペクター / 下 = タイムライン
  */
 export function App() {
-  const [perf, setPerf] = useState<PerfSnapshot | null>(null);
-  const [wasm, setWasm] = useState<boolean | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState<(typeof STEPS)[number]["key"]>("media");
-
-  const onEngineMessage = useCallback((msg: FromWorker) => {
-    if (msg.type === "perf") setPerf(msg.perf);
-    else if (msg.type === "ready") setWasm(msg.wasm);
-    else if (msg.type === "error") setError(msg.message);
-  }, []);
+  const step = useStore((s) => s.step);
+  const setStep = useStore((s) => s.setStep);
+  const aspect = useStore((s) => s.scene.aspect);
+  const setAspect = useStore((s) => s.setAspect);
+  const error = useStore((s) => s.error);
+  const loading = useStore((s) => s.loading);
+  const [dragging, setDragging] = useState(false);
 
   return (
-    <div className="grid h-full grid-rows-[56px_1fr_120px] gap-px bg-line">
-      <header className="flex items-center gap-4 bg-surface px-4">
-        <div className="accent-gradient h-7 w-7 rounded-lg" aria-hidden />
-        <h1 className="text-sm font-semibold tracking-wide">Audio Waves Visualizer</h1>
-        <span className="rounded-md bg-raised px-2 py-0.5 text-xs text-ink-muted">v0.1 プレビュー版</span>
+    <div
+      className="grid h-full grid-rows-[56px_1fr_auto] gap-px bg-line"
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={(e) => e.currentTarget === e.target && setDragging(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        void loadFiles(e.dataTransfer.files);
+      }}
+    >
+      <header className="flex items-center gap-3 bg-surface px-4">
+        <div className="accent-gradient h-7 w-7 shrink-0 rounded-lg" aria-hidden />
+        <h1 className="truncate text-sm font-semibold tracking-wide">Audio Waves Visualizer</h1>
+        <span className="hidden rounded-md bg-raised px-2 py-0.5 text-xs text-ink-muted sm:inline">v0.2 プレビュー版</span>
+        <a href={CLASSIC_URL} data-testid="classic-link" className="classic-link ml-2 shrink-0 rounded-md px-2.5 py-1 text-xs font-bold">
+          → 旧版はこちら
+        </a>
         <div className="ml-auto flex items-center gap-3">
-          <a
-            href={CLASSIC_URL}
-            data-testid="classic-link"
-            className="text-xs text-ink-muted underline-offset-4 transition hover:text-ink hover:underline"
-          >
-            → 旧版はこちら
-          </a>
-          <button
-            className="accent-gradient rounded-lg px-4 py-1.5 text-sm font-semibold text-white opacity-60"
-            disabled
-            title="フェーズ3で実装"
-          >
+          <div className="flex rounded-lg bg-raised p-0.5" role="radiogroup" aria-label="画面比率">
+            {ASPECTS.map((a) => (
+              <button
+                key={a}
+                role="radio"
+                aria-checked={aspect === a}
+                data-testid={`aspect-${a}`}
+                onClick={() => setAspect(a)}
+                className={`rounded-md px-2.5 py-1 font-mono text-xs transition ${aspect === a ? "bg-surface text-ink shadow" : "text-ink-muted hover:text-ink"}`}
+              >
+                {a}
+              </button>
+            ))}
+          </div>
+          <button className="accent-gradient hidden rounded-lg px-4 py-1.5 text-sm font-semibold text-white opacity-60 sm:block" disabled title="フェーズ3で実装">
             書き出し
           </button>
         </div>
       </header>
 
-      <main className="grid min-h-0 grid-cols-1 gap-px lg:grid-cols-[240px_1fr_320px]">
-        <nav className="hidden flex-col gap-1 bg-surface p-3 lg:flex" aria-label="作業ステップ">
-          {STEPS.map((s, i) => (
-            <button
-              key={s.key}
-              onClick={() => setStep(s.key)}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-left transition ${
-                step === s.key ? "bg-raised text-ink" : "text-ink-muted hover:bg-raised/60"
-              }`}
-            >
-              <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs ${step === s.key ? "accent-gradient text-white" : "bg-raised"}`}>
-                {i + 1}
-              </span>
-              <span>
-                <span className="block text-sm">{s.label}</span>
-                <span className="block text-xs text-ink-muted">{s.hint}</span>
-              </span>
-            </button>
-          ))}
-        </nav>
+      <main className="grid min-h-0 grid-cols-1 gap-px lg:grid-cols-[320px_1fr_300px]">
+        <div className="flex min-h-0 flex-col bg-surface lg:order-none">
+          <nav className="grid grid-cols-4 gap-1 border-b border-line p-2" aria-label="作業ステップ">
+            {STEPS.map((s, i) => (
+              <button
+                key={s.key}
+                data-testid={`step-${s.key}`}
+                onClick={() => setStep(s.key)}
+                className={`flex flex-col items-center gap-1 rounded-lg px-1 py-2 text-xs transition ${step === s.key ? "bg-raised text-ink" : "text-ink-muted hover:bg-raised/60"}`}
+                title={s.hint}
+              >
+                <span className={`flex h-6 w-6 items-center justify-center rounded-full ${step === s.key ? "accent-gradient text-white" : "bg-raised"}`}>{i + 1}</span>
+                {s.label}
+              </button>
+            ))}
+          </nav>
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <StepContent step={step} />
+          </div>
+        </div>
 
-        <section className="relative min-h-0 bg-base p-4">
-          <Stage onEngineMessage={onEngineMessage} />
-          <PerfHud perf={perf} wasm={wasm} />
+        <section className="relative order-first min-h-[40vh] bg-base p-4 lg:order-none lg:min-h-0">
+          <Stage />
+          <PerfHud />
+          {loading && <div className="glass absolute left-6 top-6 rounded-lg px-3 py-2 text-sm">{loading}</div>}
           {error && (
             <div role="alert" className="absolute bottom-6 left-6 right-6 rounded-lg border border-bad/40 bg-bad/10 px-4 py-2 text-sm text-bad">
               {error}
             </div>
           )}
+          {dragging && (
+            <div className="pointer-events-none absolute inset-3 flex items-center justify-center rounded-2xl border-2 border-dashed border-accent-to bg-base/70 text-lg font-semibold">
+              ここにドロップ（音声・画像）
+            </div>
+          )}
         </section>
 
-        <aside className="hidden bg-surface p-4 lg:block" aria-label="インスペクター">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">インスペクター</h2>
-          <p className="mt-3 text-sm text-ink-muted">選んだレイヤーの設定がここに表示されます（フェーズ4で実装）。</p>
+        <aside className="min-h-0 overflow-y-auto bg-surface p-4" aria-label="インスペクター">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">インスペクター</h2>
+          <Inspector />
         </aside>
       </main>
 
       <footer className="bg-surface px-4 py-3" aria-label="タイムライン">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">タイムライン</h2>
-        <div className="mt-3 h-12 rounded-lg border border-dashed border-line" />
+        <Timeline />
       </footer>
     </div>
   );
