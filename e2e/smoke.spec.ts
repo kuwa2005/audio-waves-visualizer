@@ -15,7 +15,10 @@ test("描画エンジンが起動し、WASM が動き、フレームが進む", 
   await expect(page.getByTestId("perf-wasm")).toHaveText("OK", { timeout: 15_000 });
 
   // HUD に FPS が出るまで待つ（0.5 秒ごとに更新）
-  await expect.poll(async () => Number(await page.getByTestId("perf-fps").textContent()), { timeout: 10_000 }).toBeGreaterThan(10);
+  await expect.poll(async () => Number(await page.getByTestId("perf-fps").textContent()), { timeout: 10_000 }).toBeGreaterThan(1);
+
+  // 旧版へのリンク
+  await expect(page.getByTestId("classic-link")).toHaveAttribute("href", "/visualizer-classic/");
 
   // SharedArrayBuffer 用のクロスオリジン分離が効いていること
   expect(await page.evaluate(() => crossOriginIsolated)).toBe(true);

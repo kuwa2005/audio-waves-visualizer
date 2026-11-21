@@ -4,6 +4,9 @@ import type { PerfSnapshot } from "../engine/perfStats";
 import { PerfHud } from "./PerfHud";
 import { Stage } from "./Stage";
 
+/** 旧版（Music Waves Visualizer 最終版）の公開先 */
+const CLASSIC_URL = "/visualizer-classic/";
+
 const STEPS = [
   { key: "media", label: "素材", hint: "音声・画像・動画" },
   { key: "visual", label: "ビジュアル", hint: "スペアナ・エフェクト" },
@@ -34,7 +37,14 @@ export function App() {
         <div className="accent-gradient h-7 w-7 rounded-lg" aria-hidden />
         <h1 className="text-sm font-semibold tracking-wide">Audio Waves Visualizer</h1>
         <span className="rounded-md bg-raised px-2 py-0.5 text-xs text-ink-muted">v0.1 プレビュー版</span>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-3">
+          <a
+            href={CLASSIC_URL}
+            data-testid="classic-link"
+            className="text-xs text-ink-muted underline-offset-4 transition hover:text-ink hover:underline"
+          >
+            → 旧版はこちら
+          </a>
           <button
             className="accent-gradient rounded-lg px-4 py-1.5 text-sm font-semibold text-white opacity-60"
             disabled

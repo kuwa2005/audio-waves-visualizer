@@ -31,8 +31,12 @@ AWV_URL=https://lil.la/visualizer/ npx playwright test  # 本番に対して実�
 
 ## デプロイ
 
-`deploy.env.example` を `deploy.env` にコピーして接続情報を記入し（コミットしないこと）、`scripts/deploy.sh` を実行します。
-本番では `.htaccess` で COOP/COEP ヘッダーを付け、SharedArrayBuffer を有効にしています。
+`deploy.env.example` を `deploy.env` にコピーして接続先を記入し（コミットしないこと）、`scripts/deploy.sh` を実行します。
+SSH + rsync で `<公開先>.new` に転送したあと、既存の公開フォルダを `<公開先>.NNN` に退避して切り替えます（`--dry-run` で確認のみ）。
+
+- 本番では `.htaccess` で COOP/COEP ヘッダーを付け、SharedArrayBuffer を有効にしています。
+- サイトは Cloudflare 経由で配信されており、404 も一定時間キャッシュされます。**デプロイ前に新しいアセットの URL へアクセスしない**でください（ファイル名のハッシュが変われば解消します）。
+- 旧版（Music Waves Visualizer 最終版）は https://lil.la/visualizer-classic/ に残しています。
 
 ## 構成
 

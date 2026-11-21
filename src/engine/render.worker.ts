@@ -11,6 +11,8 @@ import init, { Analyzer } from "../wasm/pkg/awv_core";
 import type { FromWorker, ToWorker } from "./protocol";
 import { PerfStats } from "./perfStats";
 
+/** エンジンのバージョン（HUD・不具合報告で使う） */
+const ENGINE_VERSION = "0.1.1";
 const FFT_SIZE = 2048;
 const SAMPLE_RATE = 48000;
 const BAR_COUNT = 96;
@@ -146,7 +148,7 @@ self.onmessage = async (e: MessageEvent<ToWorker>) => {
         } catch (err) {
           post({ type: "error", message: `WASM の読み込みに失敗: ${String(err)}` });
         }
-        post({ type: "ready", wasm });
+        post({ type: "ready", wasm, version: ENGINE_VERSION });
         raf(frame);
         break;
       }

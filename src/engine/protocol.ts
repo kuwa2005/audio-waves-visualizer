@@ -8,6 +8,6 @@ export type ToWorker =
 
 /** 描画 Worker → メインスレッド */
 export type FromWorker =
-  | { type: "ready"; wasm: boolean }
+  | { type: "ready"; wasm: boolean; version: string }
   | { type: "perf"; perf: PerfSnapshot }
   | { type: "error"; message: string };
