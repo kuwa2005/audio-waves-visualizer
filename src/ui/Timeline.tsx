@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { currentTime, seek, togglePlay } from "../app/controller";
+import { resolveRange } from "../engine/scene";
 import { useStore } from "../state/store";
 
 function formatTime(sec: number): string {
@@ -16,6 +17,7 @@ export function Timeline() {
   const track = useStore((s) => s.track);
   const waveform = useStore((s) => s.waveform);
   const playing = useStore((s) => s.playing);
+  const range = useStore((s) => s.scene.range);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const headRef = useRef<HTMLDivElement>(null);
   const timeRef = useRef<HTMLSpanElement>(null);
@@ -116,6 +118,17 @@ export function Timeline() {
         onPointerMove={(e) => e.buttons === 1 && seekFromEvent(e)}
       >
         <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+        {track && (range.start > 0 || range.length !== null) && (() => {
+          const r = resolveRange(range, track.duration);
+          return (
+            <div
+              data-testid="timeline-range"
+              className="pointer-events-none absolute inset-y-0 border-x-2 border-accent-to bg-accent-to/15"
+              style={{ left: `${(r.start / track.duration) * 100}%`, width: `${((r.end - r.start) / track.duration) * 100}%` }}
+              title="書き出す範囲"
+            />
+          );
+        })()}
         {!track && <div className="absolute inset-0 flex items-center justify-center text-xs text-ink-muted">音声を読み込むと波形とビート位置が表示されます</div>}
         <div ref={headRef} className="pointer-events-none absolute inset-y-0 left-0 w-0.5 bg-white shadow-[0_0_8px_white]" />
       </div>

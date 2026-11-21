@@ -1,6 +1,6 @@
 import { BackgroundRenderer } from "./background";
 import type { AudioFeatures } from "./features";
-import { OUTPUT_SIZE, pickBackgroundImage, type Scene } from "./scene";
+import { fadeFactor, OUTPUT_SIZE, pickBackgroundImage, resolveRange, type Scene } from "./scene";
 import { EFFECT_REGISTRY } from "../plugins/effects";
 import { REGISTRY } from "../plugins/registry";
 import type { EffectContext, EffectInstance, FrameContext, SpriteCache, VisualizerInstance } from "../plugins/types";
@@ -98,7 +98,14 @@ export class SceneRenderer {
     const { width: W, height: H } = OUTPUT_SIZE[scene.aspect];
     const imgId = pickBackgroundImage(scene.background, scene.aspect);
     const artwork = imgId ? images.get(imgId) : undefined;
-    this.background.render(ctx, W, H, scene.background, artwork, imgId, features);
+    const bg = scene.background;
+    const duration = env.duration();
+    let fade = 1;
+    if (duration > 0 && (bg.fadeIn > 0 || bg.fadeOut > 0)) {
+      const r = resolveRange(scene.range, duration);
+      fade = fadeFactor(t, r.start, r.end, bg.fadeIn, bg.fadeOut);
+    }
+    this.background.render(ctx, W, H, bg, artwork, imgId, features, fade);
 
     const fc: FrameContext = {
       width: W,

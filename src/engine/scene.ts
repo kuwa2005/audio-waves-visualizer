@@ -23,7 +23,32 @@ export type BackgroundLayer = {
   dim: number;
   /** ビートで画像が一瞬ズームする強さ 0..1 */
   zoomPunch: number;
+  /** 範囲の始まりで黒から現れる時間・終わりで黒へ消える時間（秒） */
+  fadeIn: number;
+  fadeOut: number;
 };
+
+/** 書き出し（とプレビューのフェード）の範囲。length が null なら曲の最後まで */
+export type ProgramRange = { start: number; length: number | null };
+
+/** 範囲を曲の長さに収めて [start, end] にする */
+export function resolveRange(r: ProgramRange, duration: number): { start: number; end: number } {
+  const start = Math.min(Math.max(0, r.start), Math.max(0, duration));
+  const end = r.length === null ? duration : Math.min(duration, start + Math.max(0, r.length));
+  return { start, end: Math.max(start, end) };
+}
+
+/**
+ * フェードの係数 0..1。範囲の外は 1（書き出されるのは範囲内だけなので、
+ * プレビューで範囲外を再生したときに画面が真っ黒にならないようにする）
+ */
+export function fadeFactor(t: number, start: number, end: number, fadeIn: number, fadeOut: number): number {
+  if (end <= start) return 1;
+  if (t < start || t > end) return 1;
+  const a = fadeIn > 0 ? Math.min(1, (t - start) / fadeIn) : 1;
+  const b = fadeOut > 0 ? Math.min(1, (end - t) / fadeOut) : 1;
+  return Math.max(0, Math.min(a, b));
+}
 
 /** レイヤーの配置。x, y は出力サイズに対する移動量（-1..1）、scale は自身の中心を基準にした倍率 */
 export type LayerTransform = { x: number; y: number; scale: number };
@@ -72,14 +97,17 @@ export type Scene = {
   visualizers: VisualizerLayer[];
   /** ビジュアライザーを描いた後にかける後処理 */
   effects: EffectLayer[];
+  /** 書き出し範囲 */
+  range: ProgramRange;
 };
 
 export function defaultScene(): Scene {
   return {
     aspect: "16:9",
-    background: { id: "background", kind: "background", images: {}, dim: 0.35, zoomPunch: 0.4 },
+    background: { id: "background", kind: "background", images: {}, dim: 0.35, zoomPunch: 0.4, fadeIn: 0, fadeOut: 0 },
     visualizers: [],
     effects: [],
+    range: { start: 0, length: null },
   };
 }
 

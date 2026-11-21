@@ -39,14 +39,22 @@ for (const [aspect, w, h] of [
     await page.getByTestId("image-input").setInputFiles(images.map((f) => join(SAMPLE_DIR, f)));
     await expect(page.getByTestId("perf-bpm")).toBeVisible({ timeout: 60_000 });
 
+    // 画像のフェードイン 2 秒（素材タブ）
+    await page.getByTestId("fade-in").fill("2");
     await page.getByTestId(`aspect-${aspect}`).click();
     await page.getByTestId("step-visual").click();
     await page.getByTestId("add-pulse-ring").click();
     await page.getByTestId("header-export").click();
-    await page.getByTestId("range-custom").check();
+    // 開始位置 1:00 から 5 秒
     await page.getByTestId("range-start").fill("1:00");
-    await page.getByTestId("range-end").fill("1:05");
+    await page.getByTestId("len-custom").fill("5");
+    await expect(page.getByTestId("range-summary")).toContainText("1:00 〜 1:05");
+    await expect(page.getByTestId("timeline-range")).toBeVisible();
+    // 短い範囲で横長なら縦型をすすめる
+    if (aspect === "16:9") await expect(page.getByTestId("suggest-vertical")).toBeVisible();
+    else await expect(page.getByTestId("suggest-vertical")).toBeHidden();
     await page.getByRole("button", { name: "30fps" }).click();
+    await page.screenshot({ path: test.info().outputPath("export-panel.png") });
     // 使われるコーデックが事前に表示され、AAC 以外なら警告が出る
     await expect(page.getByTestId("codec-info")).toBeVisible();
     const info = await page.getByTestId("codec-info").innerText();
@@ -72,6 +80,14 @@ for (const [aspect, w, h] of [
     expect(v!.height).toBe(h);
     expect(Number(v!.nb_frames)).toBe(150);
     expect(Math.abs(Number(probe.format.duration) - 5)).toBeLessThan(0.15);
+
+    // フェードイン: 先頭のフレームは中盤より大幅に暗い（1×1 に縮小した平均の明るさで比較）
+    const luma = (sec: number) =>
+      execFileSync("ffmpeg", ["-v", "error", "-ss", String(sec), "-i", out, "-frames:v", "1", "-vf", "scale=1:1,format=gray", "-f", "rawvideo", "-"])[0];
+    const first = luma(0);
+    const middle = luma(3);
+    console.log(`[${aspect}] luma first=${first} middle=${middle}`);
+    expect(first).toBeLessThan(middle * 0.6);
 
     // 中間フレームを画像として取り出しておく（目視確認用）
     execFileSync("ffmpeg", ["-v", "error", "-y", "-ss", "2.5", "-i", out, "-frames:v", "1", test.info().outputPath(`frame-${aspect.replace(":", "x")}.png`)]);

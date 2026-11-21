@@ -7,7 +7,7 @@
 import { ArrayBufferTarget, Muxer } from "mp4-muxer";
 import { pickAudio, pickVideo } from "./codecs";
 import type { AudioFeatures } from "./features";
-import { frameCount, type ExportProgress, type ExportResult, type ExportSettings } from "./exportTypes";
+import { applyAudioFade, frameCount, type ExportProgress, type ExportResult, type ExportSettings } from "./exportTypes";
 import { SceneRenderer, type RenderEnv } from "./renderer";
 import { OUTPUT_SIZE, type Scene } from "./scene";
 import type { SpriteCache } from "../plugins/types";
@@ -98,7 +98,11 @@ export async function runExport(job: ExportJob): Promise<ExportResult> {
     const chans: Float32Array[] = [];
     for (let c = 0; c < audioCh; c++) {
       const src = job.audio.channels[Math.min(c, job.audio.channels.length - 1)].subarray(from, to);
-      chans.push(resampleLinear(src, srcRate, audioRate));
+      // subarray を加工すると元の音声まで変わるのでコピーしてからフェードする
+      const ch = resampleLinear(src, srcRate, audioRate);
+      const own = ch === src ? ch.slice() : ch;
+      if (settings.audioFade > 0) applyAudioFade(own, audioRate, settings.audioFade);
+      chans.push(own);
     }
     const aLen = chans[0].length;
     const CHUNK = 1024;

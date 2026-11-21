@@ -82,8 +82,8 @@ import { parseTime } from "../ui/ExportPanel";
 
 describe("export helpers", () => {
   it("counts frames", () => {
-    expect(frameCount({ fps: 60, videoBitrate: 1, start: 1, end: 3.5 })).toBe(150);
-    expect(frameCount({ fps: 30, videoBitrate: 1, start: 5, end: 5 })).toBe(0);
+    expect(frameCount({ fps: 60, videoBitrate: 1, start: 1, end: 3.5, audioFade: 0 })).toBe(150);
+    expect(frameCount({ fps: 30, videoBitrate: 1, start: 5, end: 5, audioFade: 0 })).toBe(0);
   });
   it("clamps range to duration", () => {
     expect(clampRange(-1, 500, 182.8)).toEqual({ start: 0, end: 182.8 });
@@ -166,5 +166,33 @@ describe("graphic EQ band level", () => {
   it("lowest bands still read a bin even when narrower than the bin width", () => {
     const spec = new Float32Array(1025).fill(0.1);
     expect(bandLevel(spec, 48000, 20, 1 / 3)).toBeGreaterThan(0);
+  });
+});
+
+import { fadeFactor, resolveRange } from "./scene";
+import { applyAudioFade } from "./exportTypes";
+
+describe("program range and fades", () => {
+  it("resolves start + length and clamps to the song", () => {
+    expect(resolveRange({ start: 60, length: 30 }, 182.8)).toEqual({ start: 60, end: 90 });
+    expect(resolveRange({ start: 170, length: 60 }, 182.8)).toEqual({ start: 170, end: 182.8 });
+    expect(resolveRange({ start: 10, length: null }, 100)).toEqual({ start: 10, end: 100 });
+    expect(resolveRange({ start: 500, length: 15 }, 100)).toEqual({ start: 100, end: 100 });
+  });
+  it("fades in and out at the range edges", () => {
+    expect(fadeFactor(60, 60, 90, 2, 2)).toBe(0);
+    expect(fadeFactor(61, 60, 90, 2, 2)).toBeCloseTo(0.5);
+    expect(fadeFactor(75, 60, 90, 2, 2)).toBe(1);
+    expect(fadeFactor(89.5, 60, 90, 2, 2)).toBeCloseTo(0.25);
+    expect(fadeFactor(30, 60, 90, 2, 2)).toBe(1); // 範囲外はそのまま表示
+    expect(fadeFactor(75, 60, 90, 0, 0)).toBe(1);
+  });
+  it("applies linear audio fade at both ends", () => {
+    const ch = new Float32Array(100).fill(1);
+    applyAudioFade(ch, 10, 1); // 10 サンプル
+    expect(ch[0]).toBe(0);
+    expect(ch[5]).toBeCloseTo(0.5);
+    expect(ch[50]).toBe(1);
+    expect(ch[99]).toBe(0);
   });
 });

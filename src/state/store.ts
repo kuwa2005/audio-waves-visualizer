@@ -11,6 +11,7 @@ import {
   type EffectLayer,
   type LayerTransform,
   type ParamValue,
+  type ProgramRange,
   type Scene,
   type VisualizerLayer,
 } from "../engine/scene";
@@ -67,6 +68,7 @@ type Actions = {
   toggleEffect(id: string): void;
   setEffectParam(layerId: string, key: string, value: ParamValue): void;
   setBackground(patch: Partial<Omit<BackgroundLayer, "id" | "kind">>): void;
+  setRange(patch: Partial<ProgramRange>): void;
   patch(p: Partial<State>): void;
 };
 
@@ -146,6 +148,7 @@ export const useStore = create<State & Actions>((set) => ({
     set((s) => ({
       scene: { ...s.scene, effects: s.scene.effects.map((e) => (e.id === layerId ? { ...e, params: { ...e.params, [key]: value } } : e)) },
     })),
+  setRange: (p) => set((s) => ({ scene: { ...s.scene, range: { ...s.scene.range, ...p } } })),
   setBackground: (p) => set((s) => ({ scene: { ...s.scene, background: { ...s.scene.background, ...p } } })),
   patch: (p) => set(p),
 }));

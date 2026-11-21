@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { pickAudio, pickVideo } from "../engine/codecs";
-import { cancelExport, startExport } from "../app/controller";
-import { clampRange, QUALITY_PRESETS } from "../engine/exportTypes";
-import { OUTPUT_SIZE } from "../engine/scene";
+import { cancelExport, currentTime, startExport } from "../app/controller";
+import { LENGTH_PRESETS, QUALITY_PRESETS } from "../engine/exportTypes";
+import { OUTPUT_SIZE, resolveRange } from "../engine/scene";
 import { useStore } from "../state/store";
 
 function fmt(sec: number): string {
@@ -32,9 +32,12 @@ export function ExportPanel() {
   const ex = useStore((s) => s.exportState);
   const [fps, setFps] = useState<30 | 60>(60);
   const [quality, setQuality] = useState<(typeof QUALITY_PRESETS)[number]["key"]>("high");
-  const [whole, setWhole] = useState(true);
-  const [startText, setStartText] = useState("0:00");
-  const [endText, setEndText] = useState("0:30");
+  const range = useStore((s) => s.scene.range);
+  const setRange = useStore((s) => s.setRange);
+  const setAspect = useStore((s) => s.setAspect);
+  const [startText, setStartText] = useState(fmt(range.start));
+  const [customLen, setCustomLen] = useState("20");
+  const [audioFade, setAudioFade] = useState(0.5);
   const [codecs, setCodecs] = useState<{ video: string; audio: string } | { error: string } | null>(null);
   const aspectForProbe = useStore((s) => s.scene.aspect);
 
@@ -54,11 +57,16 @@ export function ExportPanel() {
 
   const { width, height } = OUTPUT_SIZE[aspect];
   const bitrate = QUALITY_PRESETS.find((q) => q.key === quality)!.bitrate * (fps === 60 ? 1.25 : 1);
-  const startSec = whole ? 0 : parseTime(startText);
-  const endSec = whole ? track.duration : parseTime(endText);
-  const rangeValid = startSec !== null && endSec !== null && endSec > startSec;
-  const range = rangeValid ? clampRange(startSec!, endSec!, track.duration) : null;
-  const dur = range ? range.end - range.start : 0;
+  const startValid = parseTime(startText) !== null;
+  const r = resolveRange(range, track.duration);
+  const dur = r.end - r.start;
+  const isPreset = range.length === null || LENGTH_PRESETS.some((p) => p.seconds === range.length);
+  const short = range.length !== null && range.length <= 180;
+  const commitStart = (text: string) => {
+    setStartText(text);
+    const v = parseTime(text);
+    if (v !== null) setRange({ start: Math.min(v, Math.max(0, track.duration - 1)) });
+  };
   const estBytes = ((bitrate + 256_000) * dur) / 8;
   const running = ex.state === "running";
 
@@ -93,27 +101,95 @@ export function ExportPanel() {
         </div>
       </section>
 
-      <section className="space-y-2 text-sm">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">範囲</h3>
-        <label className="flex items-center gap-2">
-          <input type="radio" checked={whole} disabled={running} onChange={() => setWhole(true)} /> 曲全体（{fmt(track.duration)}）
-        </label>
-        <label className="flex items-center gap-2">
-          <input type="radio" checked={!whole} disabled={running} onChange={() => setWhole(false)} data-testid="range-custom" /> 範囲を指定
-        </label>
-        {!whole && (
-          <div className="flex items-center gap-2 pl-6">
-            <input data-testid="range-start" value={startText} disabled={running} onChange={(e) => setStartText(e.target.value)} className="w-20 rounded border border-line bg-raised px-2 py-1 font-mono text-xs" />
-            〜
-            <input data-testid="range-end" value={endText} disabled={running} onChange={(e) => setEndText(e.target.value)} className="w-20 rounded border border-line bg-raised px-2 py-1 font-mono text-xs" />
+      <section className="space-y-3 text-sm" data-testid="range-section">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">書き出す範囲</h3>
+        <div className="flex items-center gap-2">
+          <span className="w-16 shrink-0 text-ink-muted">開始位置</span>
+          <input
+            data-testid="range-start"
+            value={startText}
+            disabled={running}
+            onChange={(e) => commitStart(e.target.value)}
+            className={`w-20 rounded border bg-raised px-2 py-1 font-mono text-xs ${startValid ? "border-line" : "border-bad"}`}
+          />
+          <button
+            data-testid="range-start-now"
+            disabled={running}
+            onClick={() => commitStart(fmt(Math.floor(currentTime())))}
+            className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted hover:border-accent-from hover:text-ink"
+            title="タイムラインの再生位置を開始位置にする"
+          >
+            ▶ 再生位置から
+          </button>
+        </div>
+        <div>
+          <span className="mb-1 block text-ink-muted">長さ（開始位置から）</span>
+          <div className="flex flex-wrap gap-1.5">
+            {LENGTH_PRESETS.map((p) => (
+              <button
+                key={p.label}
+                data-testid={`len-${p.seconds ?? "end"}`}
+                disabled={running}
+                onClick={() => setRange({ length: p.seconds })}
+                title={p.hint || undefined}
+                className={`rounded-lg border px-2.5 py-1 text-xs transition ${
+                  range.length === p.seconds ? "border-accent-to bg-accent-to/15 text-ink" : "border-line text-ink-muted hover:border-accent-from hover:text-ink"
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+            <span className={`flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs ${!isPreset ? "border-accent-to bg-accent-to/15" : "border-line"}`}>
+              <input
+                data-testid="len-custom"
+                value={customLen}
+                disabled={running}
+                onChange={(e) => {
+                  setCustomLen(e.target.value);
+                  const v = parseTime(e.target.value);
+                  if (v !== null && v > 0) setRange({ length: v });
+                }}
+                onFocus={() => {
+                  const v = parseTime(customLen);
+                  if (v !== null && v > 0) setRange({ length: v });
+                }}
+                className="w-10 bg-transparent text-right font-mono"
+              />
+              秒
+            </span>
           </div>
-        )}
-        {!rangeValid && <p className="text-xs text-bad">範囲は「分:秒」または秒で、開始 &lt; 終了 になるよう入力してください。</p>}
-        {range && (
-          <p className="text-xs text-ink-muted">
-            長さ {fmt(dur)} ・ 予想サイズ 約 {mb(estBytes)}
+          <p className="mt-1 text-[11px] leading-4 text-ink-muted">
+            目安: 15〜60秒は TikTok・YouTube ショート・ニコニコ向け、YouTube ショートは 3 分まで。各サービスの最新の上限は公式の案内で確認してください。
           </p>
+        </div>
+        <p className="rounded-lg bg-raised/60 px-3 py-2 font-mono text-xs" data-testid="range-summary">
+          {fmt(r.start)} 〜 {fmt(r.end)}（{dur.toFixed(dur < 60 ? 1 : 0)} 秒）・ 予想 約 {mb(estBytes)}
+          {range.length !== null && r.start + range.length > track.duration + 0.01 && <span className="block text-warn">曲の最後で切れます</span>}
+        </p>
+        {short && aspect !== "9:16" && (
+          <button
+            data-testid="suggest-vertical"
+            onClick={() => setAspect("9:16")}
+            className="w-full rounded-lg border border-dashed border-accent-to/60 px-3 py-1.5 text-xs text-accent-to hover:bg-accent-to/10"
+          >
+            ショート動画なら縦型（9:16）がおすすめ → 切り替える
+          </button>
         )}
+        <div className="flex items-center justify-between">
+          <span className="text-ink-muted">音声のフェード</span>
+          <div className="flex rounded-lg bg-raised p-0.5">
+            {[0, 0.5, 1, 2].map((v) => (
+              <button
+                key={v}
+                disabled={running}
+                onClick={() => setAudioFade(v)}
+                className={`rounded-md px-2 py-1 font-mono text-xs ${audioFade === v ? "bg-surface shadow" : "text-ink-muted"}`}
+              >
+                {v === 0 ? "なし" : `${v}秒`}
+              </button>
+            ))}
+          </div>
+        </div>
       </section>
 
       {codecs && "error" in codecs && (
@@ -139,8 +215,8 @@ export function ExportPanel() {
       {!running && (
         <button
           data-testid="export-start"
-          disabled={!range || dur <= 0}
-          onClick={() => range && startExport({ fps, videoBitrate: Math.round(bitrate), start: range.start, end: range.end })}
+          disabled={!startValid || dur <= 0}
+          onClick={() => startExport({ fps, videoBitrate: Math.round(bitrate), start: r.start, end: r.end, audioFade })}
           className="accent-gradient w-full rounded-xl py-2.5 text-sm font-semibold text-white shadow-lg disabled:opacity-40"
         >
           MP4 を書き出す

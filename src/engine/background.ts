@@ -17,12 +17,14 @@ export class BackgroundRenderer {
     image: ImageBitmap | undefined,
     imageId: string | undefined,
     f: AudioFeatures,
+    /** 画像のフェード係数 0..1（0 で真っ黒） */
+    fade = 1,
   ): void {
     ctx.globalCompositeOperation = "source-over";
     ctx.globalAlpha = 1;
     ctx.fillStyle = "#07080c";
     ctx.fillRect(0, 0, W, H);
-    if (!image || !imageId) return;
+    if (!image || !imageId || fade <= 0) return;
 
     // ズーム時に端が見えないよう、少し大きめ（110%）でキャッシュする
     const over = 1.1;
@@ -44,10 +46,12 @@ export class BackgroundRenderer {
     const zoom = 1 + layer.zoomPunch * (f.kick * 0.06 + f.bass * 0.02);
     const dw = (W * zoom * over);
     const dh = (H * zoom * over);
+    ctx.globalAlpha = fade;
     ctx.drawImage(c, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    ctx.globalAlpha = 1;
     const dim = Math.min(1, Math.max(0, layer.dim - f.kick * layer.zoomPunch * 0.15));
     if (dim > 0) {
-      ctx.globalAlpha = dim;
+      ctx.globalAlpha = dim * fade;
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, W, H);
       ctx.globalAlpha = 1;

@@ -7,7 +7,29 @@ export type ExportSettings = {
   /** 書き出し範囲（秒） */
   start: number;
   end: number;
+  /** 音声のフェードイン・アウト（秒、0 でなし） */
+  audioFade: number;
 };
+
+/** 長さのプリセット（秒）。null は「曲の最後まで」 */
+export const LENGTH_PRESETS: { seconds: number | null; label: string; hint: string }[] = [
+  { seconds: 15, label: "15秒", hint: "TikTok・ショート" },
+  { seconds: 30, label: "30秒", hint: "ショート全般" },
+  { seconds: 60, label: "60秒", hint: "YouTube ショート・TikTok・ニコニコ" },
+  { seconds: 90, label: "90秒", hint: "" },
+  { seconds: 180, label: "3分", hint: "YouTube ショートの上限" },
+  { seconds: null, label: "最後まで", hint: "" },
+];
+
+/** 音声に線形のフェードイン・アウトをかける（その場で書き換え） */
+export function applyAudioFade(ch: Float32Array, sampleRate: number, seconds: number): void {
+  const n = Math.min(Math.floor(seconds * sampleRate), Math.floor(ch.length / 2));
+  for (let i = 0; i < n; i++) {
+    const g = i / n;
+    ch[i] *= g;
+    ch[ch.length - 1 - i] *= g;
+  }
+}
 
 export type ExportProgress = {
   phase: "preparing" | "rendering" | "finalizing";
