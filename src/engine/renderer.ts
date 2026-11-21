@@ -9,6 +9,8 @@ import type { EffectContext, EffectInstance, FrameContext, SpriteCache, Visualiz
 export type RenderEnv = {
   /** 任意の時刻のスペクトル */
   spectrumAt(t: number): Float32Array;
+  /** 曲の長さ（秒） */
+  duration(): number;
 };
 
 /**
@@ -93,9 +95,21 @@ export class SceneRenderer {
   ): void {
     const { width: W, height: H } = OUTPUT_SIZE[scene.aspect];
     const imgId = pickBackgroundImage(scene.background, scene.aspect);
-    this.background.render(ctx, W, H, scene.background, imgId ? images.get(imgId) : undefined, imgId, features);
+    const artwork = imgId ? images.get(imgId) : undefined;
+    this.background.render(ctx, W, H, scene.background, artwork, imgId, features);
 
-    const fc: FrameContext = { width: W, height: H, t, dt, features, sprites: this.sprites, spectrumAt: env.spectrumAt };
+    const fc: FrameContext = {
+      width: W,
+      height: H,
+      t,
+      dt,
+      features,
+      sprites: this.sprites,
+      spectrumAt: env.spectrumAt,
+      duration: env.duration(),
+      artwork,
+      artworkId: imgId,
+    };
     for (const layer of scene.visualizers) {
       if (!layer.enabled || layer.opacity <= 0) continue;
       const inst = this.instanceFor(layer.id, layer.pluginId);

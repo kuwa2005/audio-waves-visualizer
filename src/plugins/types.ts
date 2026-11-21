@@ -32,6 +32,11 @@ export type FrameContext = {
   sprites: SpriteCache;
   /** 任意の時刻のスペクトル（履歴表示用）。返り値は次の呼び出しで上書きされるので、必要ならコピーする */
   spectrumAt(t: number): Float32Array;
+  /** 曲の長さ（秒）。曲が無ければ 0 */
+  duration: number;
+  /** 現在の背景画像（レコードのラベル等に使える）と、そのキャッシュ用 ID */
+  artwork?: ImageBitmap;
+  artworkId?: string;
 };
 
 /** エフェクト（画面全体への後処理）に渡す作業用キャンバス */

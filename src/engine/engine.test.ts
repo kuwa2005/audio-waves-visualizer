@@ -125,3 +125,27 @@ describe("layer transform", () => {
     expect(ring.w).toBe(ring.h);
   });
 });
+
+import { stylusPoint } from "../plugins/turntable";
+import { turntableLayout, turntableMeta } from "../plugins/catalog";
+
+describe("turntable geometry", () => {
+  const L = turntableLayout(defaultParams(turntableMeta), 1920, 1080);
+  it("stylus reaches both outer and inner grooves with fixed arm length", () => {
+    for (const rr of [L.platterR * 0.9, L.platterR * 0.42]) {
+      const p = stylusPoint(L.pivotX, L.pivotY, L.armLen, L.px, L.py, rr);
+      expect(p).not.toBeNull();
+      expect(Math.hypot(p![0] - L.px, p![1] - L.py)).toBeCloseTo(rr, 3);
+      expect(Math.hypot(p![0] - L.pivotX, p![1] - L.pivotY)).toBeCloseTo(L.armLen, 3);
+    }
+  });
+  it("unit fits inside the frame for every aspect", () => {
+    for (const [W, H] of [[1920, 1080], [1080, 1920], [1080, 1080]]) {
+      const l = turntableLayout(defaultParams(turntableMeta), W, H);
+      expect(l.x).toBeGreaterThanOrEqual(0);
+      expect(l.y).toBeGreaterThanOrEqual(0);
+      expect(l.x + l.w).toBeLessThanOrEqual(W);
+      expect(l.y + l.h).toBeLessThanOrEqual(H);
+    }
+  });
+});

@@ -28,6 +28,14 @@ test("全ビジュアライザー・全エフェクトがエラーなく描画�
     await page.waitForTimeout(1800);
     await page.getByTestId("stage").screenshot({ path: test.info().outputPath(`vis-${meta.id}.png`) });
     console.log(meta.id, (await page.getByTestId("perf-hud").innerText()).replace(/\n/g, " | "));
+    if (meta.id === "turntable") {
+      // 仕上げの切り替え
+      for (const finish of ["walnut", "black"]) {
+        await page.getByTestId("inspector").locator("select").first().selectOption(finish);
+        await page.waitForTimeout(800);
+        await page.getByTestId("stage").screenshot({ path: test.info().outputPath(`vis-turntable-${finish}.png`) });
+      }
+    }
     await layerList.getByRole("button", { name: "削除" }).first().click();
   }
 

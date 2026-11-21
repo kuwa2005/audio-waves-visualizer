@@ -93,6 +93,9 @@ const env: RenderEnv = {
     track.spectrum_at(t);
     return f32(track.magnitudes_ptr(), track.bin_count());
   },
+  duration(): number {
+    return track ? track.duration() : 0;
+  },
 };
 
 function idleSignal(buf: Float32Array, t: number): void {

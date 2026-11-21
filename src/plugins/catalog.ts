@@ -1,4 +1,5 @@
 import { num, type PluginMeta } from "./types";
+import type { ParamValues } from "../engine/scene";
 
 /**
  * ビジュアライザーの一覧（メタ情報のみ）。UI はこれを使い、描画コードは Worker 側の registry が持つ。
@@ -119,7 +120,50 @@ export const lineScapeMeta: PluginMeta = {
   },
 };
 
-export const CATALOG: PluginMeta[] = [neonBarsMeta, pulseRingMeta, warpTunnelMeta, galaxyMeta, lightningMeta, lineScapeMeta];
+/** ターンテーブルの各部の位置（出力ピクセル座標）。描画と当たり判定で共通 */
+export function turntableLayout(p: ParamValues, W: number, H: number) {
+  const w = Math.min(W * 0.92, H * 1.25) * num(p, "size", 0.8);
+  const h = w * 0.74;
+  const x = (W - w) / 2;
+  const y = (H - h) / 2;
+  const bodyH = h - (22 * w) / 1000;
+  const px = x + w * 0.4;
+  const py = y + bodyH * 0.5;
+  const platterR = bodyH * 0.42;
+  const pivotX = x + w * 0.83;
+  const pivotY = y + bodyH * 0.2;
+  const armLen = Math.hypot(px - pivotX, py - pivotY) * 1.02;
+  return { x, y, w, h, px, py, platterR, pivotX, pivotY, armLen };
+}
+
+export const turntableMeta: PluginMeta = {
+  id: "turntable",
+  name: "ターンテーブル",
+  description: "高級レコードプレーヤー。ラベルに背景画像、針は曲の進行に合わせて内側へ",
+  params: [
+    { key: "size", label: "大きさ", type: "number", min: 0.3, max: 1, step: 0.01, default: 0.8 },
+    {
+      key: "finish",
+      label: "仕上げ",
+      type: "select",
+      default: "aluminum",
+      options: [
+        { value: "aluminum", label: "ヘアラインアルミ" },
+        { value: "black", label: "ピアノブラック" },
+        { value: "walnut", label: "ウォールナット" },
+      ],
+    },
+    { key: "rpm", label: "回転数", type: "select", default: "33", options: [{ value: "33", label: "33⅓ 回転" }, { value: "45", label: "45 回転" }] },
+    { key: "led", label: "ランプの色", type: "color", default: "#4cc3ff" },
+    { key: "vibration", label: "低音での振動", type: "number", min: 0, max: 1, step: 0.05, default: 0.4 },
+  ],
+  bounds(p, W, H) {
+    const l = turntableLayout(p, W, H);
+    return { x: l.x, y: l.y, w: l.w, h: l.h };
+  },
+};
+
+export const CATALOG: PluginMeta[] = [neonBarsMeta, pulseRingMeta, warpTunnelMeta, galaxyMeta, lightningMeta, lineScapeMeta, turntableMeta];
 
 export function findMeta(id: string): PluginMeta | undefined {
   return CATALOG.find((m) => m.id === id);
