@@ -347,7 +347,7 @@ export const sparkle: VisualizerPlugin = {
         }
 
         // ビートではじける粒
-        const burst = Math.round(num(p, "burst", 18));
+        const burst = Math.round(num(p, "burst", 18) * frame.beatSens);
         if (burst > 0 && f.beatIndex >= 0 && f.sinceBeat < BURST_LIFE) {
           const age = f.sinceBeat / BURST_LIFE;
           const cx = hash01(f.beatIndex * 13 + 1) * W;

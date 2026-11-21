@@ -79,7 +79,8 @@ export const vhs: EffectPlugin = {
           const rnd = mulberry32(Math.floor(t * 24));
           for (let k = 0; k < 6; k++) {
             const y = bandY + (k / 6) * bandH;
-            const dx = (rnd() - 0.5) * 40 * s * tracking;
+            // ビートで乱れが強まる（ビートへの感度が効く）
+            const dx = (rnd() - 0.5) * 40 * s * tracking * (1 + fx.features.kick * 1.5);
             ctx.drawImage(copy, 0, y, W, bandH / 6, dx, y, W, bandH / 6);
           }
           ctx.save();

@@ -1,4 +1,4 @@
-import type { EffectMeta } from "./types";
+import { BEAT_SENS_PARAM, type EffectMeta } from "./types";
 
 /** エフェクトの一覧（メタ情報のみ）。描画コードは effects.ts（Worker 側） */
 
@@ -105,6 +105,9 @@ export const kaleidoscopeMeta: EffectMeta = {
 };
 
 export const EFFECT_CATALOG: EffectMeta[] = [bloomMeta, rgbShiftMeta, zoomBlurMeta, glitchMeta, shakeMeta, flashMeta, vignetteMeta, vhsMeta, kaleidoscopeMeta];
+
+// エフェクトには共通の「ビートへの感度」を先頭に付ける
+for (const m of EFFECT_CATALOG) if (!m.params.some((d) => d.key === BEAT_SENS_PARAM.key)) m.params.unshift(BEAT_SENS_PARAM);
 
 export function findEffectMeta(id: string): EffectMeta | undefined {
   return EFFECT_CATALOG.find((m) => m.id === id);

@@ -33,6 +33,8 @@ export type FrameContext = {
   features: AudioFeatures;
   /** 共有の描画素材（発光スプライトなど） */
   sprites: SpriteCache;
+  /** ビートへの感度（0〜2、標準 1）。features の音の値にはすでに掛けてある。拍のタイミングで動くものは自分で掛ける */
+  beatSens: number;
   /** 任意の時刻のスペクトル（履歴表示用）。返り値は次の呼び出しで上書きされるので、必要ならコピーする */
   spectrumAt(t: number): Float32Array;
   /** 時刻 t を中心とした n サンプルの波形（モノラル、-1..1）。返り値は読み取り専用のビュー */
@@ -98,3 +100,15 @@ export function str(params: ParamValues, key: string, fallback: string): string 
   const v = params[key];
   return typeof v === "string" ? v : fallback;
 }
+
+/** 環境演出・エフェクトに共通で付ける「ビートへの感度」 */
+export const BEAT_SENS_PARAM: ParamDef = {
+  key: "beatSens",
+  label: "ビートへの感度",
+  type: "number",
+  min: 0,
+  max: 2,
+  step: 0.05,
+  default: 1,
+  unit: "×",
+};

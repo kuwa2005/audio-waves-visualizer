@@ -89,6 +89,7 @@ test("全ビジュアライザー・全エフェクトがエラーなく描画�
   for (const meta of EFFECT_CATALOG) {
     const card = page.getByTestId(`add-fx-${meta.id}`);
     await card.click();
+    await expect(page.getByTestId("inspector")).toContainText("ビートへの感度");
     await page.waitForTimeout(700);
     await page.getByTestId("stage").screenshot({ path: test.info().outputPath(`fx-${meta.id}.png`) });
     await card.click();

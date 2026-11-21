@@ -124,6 +124,7 @@ export class SceneRenderer {
       sampleRate: env.sampleRate(),
       artwork,
       artworkId: imgId,
+      beatSens: 1,
     };
     for (const layer of scene.visualizers) {
       if (!layer.enabled || layer.opacity <= 0) continue;
@@ -143,7 +144,7 @@ export class SceneRenderer {
         ctx.scale(tr.scale, tr.scale);
         ctx.translate(-cx, -cy);
       }
-      inst.render(ctx, fc, layer.params);
+      inst.render(ctx, this.withSens(fc, layer.params.beatSens), layer.params);
       ctx.restore();
     }
 
@@ -163,6 +164,32 @@ export class SceneRenderer {
     }
   }
 
+  /** 感度を掛けた音の値を入れ直すための使い回しオブジェクト（毎フレームの生成を避ける） */
+  private readonly scaled: AudioFeatures = {
+    sub: 0, bass: 0, mid: 0, high: 0, rms: 0, onset: 0, bpm: 0,
+    beatIndex: -1, beatPhase: 0, sinceBeat: Infinity, kick: 0, spectrum: new Float32Array(0),
+  };
+
+  /**
+   * 「ビートへの感度」（0〜2 倍）を音の値に掛けたフレーム情報を返す。1 ならそのまま。
+   * 拍のタイミング（beatIndex・sinceBeat）は変えない（拍で動くものは各プラグインが beatSens を掛ける）。
+   */
+  private withSens<T extends FrameContext>(fc: T, raw: unknown): T {
+    const k = typeof raw === "number" ? Math.min(2, Math.max(0, raw)) : 1;
+    if (k === 1) return fc;
+    const src = fc.features;
+    const d = this.scaled;
+    Object.assign(d, src);
+    d.kick = src.kick * k;
+    d.onset = src.onset * k;
+    d.sub = src.sub * k;
+    d.bass = src.bass * k;
+    d.mid = src.mid * k;
+    d.high = src.high * k;
+    d.rms = src.rms * k;
+    return { ...fc, features: d, beatSens: k };
+  }
+
   private applyEffects(ctx: OffscreenCanvasRenderingContext2D, scene: Scene, fc: FrameContext, W: number, H: number): void {
     const fx: EffectContext = {
       ...fc,
@@ -176,7 +203,7 @@ export class SceneRenderer {
       ctx.save();
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = "source-over";
-      inst.apply(ctx, fx, layer.params);
+      inst.apply(ctx, this.withSens(fx, layer.params.beatSens), layer.params);
       ctx.restore();
     }
   }

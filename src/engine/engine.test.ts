@@ -320,3 +320,38 @@ describe("追加プラグインの補助関数", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 });
+
+import { flash } from "../plugins/effects";
+
+describe("ビートへの感度", () => {
+  it("is the first parameter of every ambient layer and every effect, and not on spectrum layers", () => {
+    for (const m of CATALOG) {
+      const has = m.params[0]?.key === "beatSens";
+      expect(has, m.id).toBe(m.category === "ambient");
+    }
+    for (const m of EFFECT_CATALOG) expect(m.params[0]?.key, m.id).toBe("beatSens");
+    const def = EFFECT_CATALOG[0].params[0];
+    expect(def).toMatchObject({ min: 0, max: 2, default: 1 });
+  });
+
+  it("flash brightness follows the sensitivity (0 = no flash)", () => {
+    const alphaFor = (beatSens: number) => {
+      let alpha = 0;
+      const ctx = {
+        save() {},
+        restore() {},
+        fillRect() {
+          alpha = (this as unknown as { globalAlpha: number }).globalAlpha;
+        },
+        globalAlpha: 1,
+        globalCompositeOperation: "source-over",
+        fillStyle: "",
+      };
+      const features = { ...emptyFeatures(8), beatIndex: 4, sinceBeat: 0.02, bpm: 120 };
+      flash.create().apply(ctx as never, { width: 10, height: 10, features, beatSens } as never, { strength: 0.35, every: 4, color: "#fff" });
+      return alpha;
+    };
+    expect(alphaFor(0)).toBe(0);
+    expect(alphaFor(2)).toBeGreaterThan(alphaFor(1));
+  });
+});

@@ -206,7 +206,7 @@ export const flash: EffectPlugin = {
         const beatSec = 60 / f.bpm;
         const every = Math.max(Math.round(num(p, "every", 4)), Math.ceil(FLASH_MIN_INTERVAL / beatSec));
         if (f.beatIndex % every !== 0) return;
-        const a = num(p, "strength", 0.35) * Math.exp(-f.sinceBeat * 9);
+        const a = Math.min(1, num(p, "strength", 0.35) * Math.exp(-f.sinceBeat * 9) * fx.beatSens);
         if (a < 0.01) return;
         ctx.save();
         ctx.globalCompositeOperation = "screen";

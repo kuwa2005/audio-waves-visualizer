@@ -65,7 +65,8 @@ export const drops: VisualizerPlugin = {
         const { width: W, height: H, t, features: f, sprites } = frame;
         const variant = str(p, "variant", "ripple") as Variant;
         const life = num(p, "life", 1.6);
-        const audio = num(p, "audio", 0.5);
+        // ビートでの発生量は「音への反応」×「ビートへの感度」
+        const audio = num(p, "audio", 0.5) * frame.beatSens;
         const base = Math.min(W, H) * 0.07 * num(p, "size", 1);
         const color = str(p, "color", "#8fd8ff");
         const colorful = num(p, "colorful", 0.3);

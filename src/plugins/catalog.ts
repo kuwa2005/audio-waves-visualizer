@@ -1,4 +1,4 @@
-import { num, type PluginMeta } from "./types";
+import { BEAT_SENS_PARAM, num, type PluginMeta } from "./types";
 import type { ParamValues } from "../engine/scene";
 
 /**
@@ -551,6 +551,9 @@ export const CATALOG: PluginMeta[] = [
   bubblesMeta,
   laserMeta,
 ];
+
+// 環境演出には共通の「ビートへの感度」を先頭に付ける
+for (const m of CATALOG) if (m.category === "ambient" && !m.params.some((d) => d.key === BEAT_SENS_PARAM.key)) m.params.unshift(BEAT_SENS_PARAM);
 
 export function findMeta(id: string): PluginMeta | undefined {
   return CATALOG.find((m) => m.id === id);
