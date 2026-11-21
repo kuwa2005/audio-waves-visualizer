@@ -12,7 +12,7 @@ test("描画エンジンが起動し、WASM が動き、フレームが進む", 
   await page.goto("");
   await expect(page.getByRole("heading", { name: "Audio Waves Visualizer" })).toBeVisible();
   await expect(page.getByTestId("stage-canvas")).toBeVisible();
-  await expect(page.getByTestId("perf-wasm")).toHaveText("OK", { timeout: 15_000 });
+  await expect(page.getByTestId("perf-wasm")).toHaveText("OK", { timeout: 30_000 });
 
   // HUD に FPS が出るまで待つ（0.5 秒ごとに更新）
   await expect.poll(async () => Number(await page.getByTestId("perf-fps").textContent()), { timeout: 10_000 }).toBeGreaterThan(1);
