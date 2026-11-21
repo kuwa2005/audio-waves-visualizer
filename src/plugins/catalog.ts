@@ -262,6 +262,36 @@ export const starrySkyMeta: PluginMeta = {
   bounds: full,
 };
 
+export const dropsMeta: PluginMeta = {
+  id: "drops",
+  name: "描画",
+  description: "画面に落ちて広がる水滴の波紋。ハート・花火・星型・猫の手にも変えられる。ビートでまとめて発生",
+  category: "ambient",
+  params: [
+    {
+      key: "variant",
+      label: "種類",
+      type: "select",
+      default: "ripple",
+      options: [
+        { value: "ripple", label: "水滴" },
+        { value: "heart", label: "ハート" },
+        { value: "firework", label: "花火" },
+        { value: "star", label: "星型" },
+        { value: "paw", label: "猫の手" },
+      ],
+    },
+    { key: "rate", label: "落ちる量（1 秒あたり）", type: "number", min: 0, max: 40, step: 0.5, default: 3 },
+    { key: "audio", label: "音への反応（ビートで発生）", type: "number", min: 0, max: 1, step: 0.05, default: 0.5 },
+    { key: "size", label: "大きさ", type: "number", min: 0.3, max: 3, step: 0.05, default: 1 },
+    { key: "life", label: "消えるまで（秒）", type: "number", min: 0.4, max: 4, step: 0.1, default: 1.6 },
+    { key: "color", label: "色", type: "color", default: "#8fd8ff" },
+    { key: "colorful", label: "色のばらつき", type: "number", min: 0, max: 1, step: 0.05, default: 0.3 },
+    { key: "glow", label: "発光", type: "number", min: 0, max: 1, step: 0.05, default: 0.5 },
+  ],
+  bounds: full,
+};
+
 export const sparkleMeta: PluginMeta = {
   id: "sparkle",
   name: "きらきら",
@@ -339,6 +369,7 @@ export const CATALOG: PluginMeta[] = [
   spaceMeta,
   starrySkyMeta,
   sparkleMeta,
+  dropsMeta,
   atmosphereMeta,
   rainMeta,
   snowMeta,

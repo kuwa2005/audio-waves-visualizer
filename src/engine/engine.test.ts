@@ -227,3 +227,23 @@ describe("AAC fallback helpers", () => {
     expect(v.getInt16(46, true)).toBe(-32768);
   });
 });
+
+import { liveDrops } from "../plugins/drops";
+
+describe("描画（しずく）の発生", () => {
+  it("is deterministic and keeps the expected count", () => {
+    const a = liveDrops(10, 4, 1.5, 0, -1, Infinity, 0);
+    const b = liveDrops(10, 4, 1.5, 0, -1, Infinity, 0);
+    expect(a).toEqual(b);
+    expect(a.length).toBeGreaterThanOrEqual(4);
+    expect(a.length).toBeLessThanOrEqual(8);
+    for (const d of a) expect(10 - d.birth).toBeGreaterThanOrEqual(0);
+  });
+  it("adds bursts on beats only when audio reaction is on", () => {
+    const off = liveDrops(5, 0, 1, 0, 10, 0.1, 120);
+    const on = liveDrops(5, 0, 1, 1, 10, 0.1, 120);
+    expect(off.length).toBe(0);
+    expect(on.length).toBeGreaterThan(0);
+    expect(on.every((d) => 5 - d.birth < 1)).toBe(true);
+  });
+});

@@ -32,6 +32,15 @@ test("全ビジュアライザー・全エフェクトがエラーなく描画�
     await page.waitForTimeout(1800);
     await page.getByTestId("stage").screenshot({ path: test.info().outputPath(`vis-${meta.id}.png`) });
     console.log(meta.id, (await page.getByTestId("perf-hud").innerText()).replace(/\n/g, " | "));
+    if (meta.id === "drops") {
+      // 種類をすべて切り替えて確認
+      for (const v of ["heart", "firework", "star", "paw"]) {
+        await page.getByTestId("inspector").locator("label", { hasText: "種類" }).locator("select").selectOption(v);
+        await page.getByTestId("inspector").locator("label", { hasText: "落ちる量" }).locator("input").fill("12");
+        await page.waitForTimeout(900);
+        await page.getByTestId("stage").screenshot({ path: test.info().outputPath(`vis-drops-${v}.png`) });
+      }
+    }
     if (meta.id === "starry-sky") {
       await page.getByTestId("inspector").locator("label", { hasText: "星の大きさ" }).locator("input").fill("3");
       await page.waitForTimeout(500);
