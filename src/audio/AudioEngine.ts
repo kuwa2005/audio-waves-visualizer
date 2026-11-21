@@ -55,6 +55,15 @@ export class AudioEngine {
     return { pcm, sampleRate: buf.sampleRate, duration: buf.duration };
   }
 
+  /** 書き出し用に元の音声（全チャンネル）のコピーを返す（Worker へ転送するためコピー） */
+  channelsCopy(): { channels: Float32Array[]; sampleRate: number } | null {
+    const b = this.buffer;
+    if (!b) return null;
+    const channels: Float32Array[] = [];
+    for (let c = 0; c < b.numberOfChannels; c++) channels.push(b.getChannelData(c).slice());
+    return { channels, sampleRate: b.sampleRate };
+  }
+
   /** 曲内の現在位置（秒）。音が実際に聞こえている位置 */
   currentTime(): number {
     if (!this.ctx || !this.playing) return this.pausedAt;

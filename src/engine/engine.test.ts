@@ -75,3 +75,30 @@ describe("scene helpers", () => {
     expect(pickBackgroundImage({ ...bg, images: { "9:16": "v", "1:1": "sq" } }, "9:16")).toBe("v");
   });
 });
+
+import { clampRange, frameCount } from "./exportTypes";
+import { resampleLinear } from "./exporter";
+import { parseTime } from "../ui/ExportPanel";
+
+describe("export helpers", () => {
+  it("counts frames", () => {
+    expect(frameCount({ fps: 60, videoBitrate: 1, start: 1, end: 3.5 })).toBe(150);
+    expect(frameCount({ fps: 30, videoBitrate: 1, start: 5, end: 5 })).toBe(0);
+  });
+  it("clamps range to duration", () => {
+    expect(clampRange(-1, 500, 182.8)).toEqual({ start: 0, end: 182.8 });
+    expect(clampRange(10, 5, 100)).toEqual({ start: 10, end: 10 });
+  });
+  it("resamples linearly", () => {
+    const src = Float32Array.from([0, 1, 2, 3]);
+    expect(resampleLinear(src, 48000, 48000)).toBe(src);
+    expect(Array.from(resampleLinear(src, 1, 2))).toEqual([0, 0.5, 1, 1.5, 2, 2.5, 3, 3]);
+  });
+  it.each([
+    ["1:23", 83],
+    ["83", 83],
+    ["0:05.5", 5.5],
+    ["abc", null],
+    ["1:75", null],
+  ])("parseTime(%s) = %s", (text, v) => expect(parseTime(text)).toBe(v));
+});

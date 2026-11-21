@@ -1,6 +1,7 @@
 import type { PerfSnapshot } from "./perfStats";
 import type { TransportState } from "./clock";
 import type { Scene } from "./scene";
+import type { ExportProgress, ExportResult, ExportSettings } from "./exportTypes";
 
 /** メインスレッド → 描画 Worker */
 export type ToWorker =
@@ -10,7 +11,10 @@ export type ToWorker =
   /** モノラル PCM（buffer は転送される） */
   | { type: "loadTrack"; pcm: Float32Array; sampleRate: number }
   | { type: "image"; id: string; bitmap: ImageBitmap }
-  | { type: "setRunning"; running: boolean };
+  | { type: "setRunning"; running: boolean }
+  /** 書き出し開始。channels は元の音声（ステレオ等、転送される） */
+  | { type: "export"; settings: ExportSettings; channels: Float32Array[]; sampleRate: number }
+  | { type: "cancelExport" };
 
 export type TrackInfo = {
   duration: number;
@@ -24,4 +28,7 @@ export type FromWorker =
   | { type: "ready"; wasm: boolean; version: string }
   | { type: "trackInfo"; info: TrackInfo }
   | { type: "perf"; perf: PerfSnapshot }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  | { type: "exportProgress"; progress: ExportProgress }
+  | { type: "exportDone"; result: ExportResult }
+  | { type: "exportError"; message: string; cancelled: boolean };

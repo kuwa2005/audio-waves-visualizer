@@ -2,6 +2,7 @@ import { AudioEngine } from "../audio/AudioEngine";
 import { RenderHost } from "../engine/RenderHost";
 import type { FromWorker } from "../engine/protocol";
 import { guessAspect } from "../engine/scene";
+import type { ExportSettings } from "../engine/exportTypes";
 import { useStore } from "../state/store";
 
 /**
@@ -31,6 +32,33 @@ function onWorkerMessage(msg: FromWorker): void {
       break;
     case "error":
       st.patch({ error: msg.message, loading: null });
+      if (st.exportState.state === "running") st.patch({ exportState: { state: "error", message: msg.message, cancelled: false } });
+      break;
+    case "exportProgress":
+      st.patch({ exportState: { state: "running", progress: msg.progress } });
+      break;
+    case "exportDone": {
+      const r = msg.result;
+      const prev = st.exportState;
+      if (prev.state === "done") URL.revokeObjectURL(prev.url);
+      const blob = new Blob([r.buffer], { type: r.mimeType });
+      const base = (st.audioFile?.name ?? "audio-waves").replace(/\.[^.]+$/, "");
+      st.patch({
+        exportState: {
+          state: "done",
+          url: URL.createObjectURL(blob),
+          fileName: `${base}-${st.scene.aspect.replace(":", "x")}.mp4`,
+          size: blob.size,
+          videoCodec: r.videoCodec,
+          audioCodec: r.audioCodec,
+          durationSec: r.durationSec,
+          elapsedSec: r.elapsedSec,
+        },
+      });
+      break;
+    }
+    case "exportError":
+      st.patch({ exportState: { state: "error", message: msg.message, cancelled: msg.cancelled } });
       break;
   }
 }
@@ -145,4 +173,27 @@ export async function seek(t: number): Promise<void> {
 
 export function currentTime(): number {
   return audio.currentTime();
+}
+
+/** MP4 書き出しを開始する（再生は一時停止する） */
+export function startExport(settings: ExportSettings): void {
+  const st = useStore.getState();
+  if (!st.track || st.exportState.state === "running") return;
+  if (audio.isPlaying) {
+    audio.pause();
+    stopSync();
+    st.patch({ playing: false });
+    pushTransport();
+  }
+  const src = audio.channelsCopy();
+  if (!src) return;
+  st.patch({ exportState: { state: "running", progress: null } });
+  host?.send(
+    { type: "export", settings, channels: src.channels, sampleRate: src.sampleRate },
+    src.channels.map((c) => c.buffer),
+  );
+}
+
+export function cancelExport(): void {
+  host?.send({ type: "cancelExport" });
 }

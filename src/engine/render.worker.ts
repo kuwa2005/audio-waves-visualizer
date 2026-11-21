@@ -3,21 +3,21 @@
  * 描画 Worker。OffscreenCanvas + Canvas 2D でメインスレッドと独立して描画する。
  *
  * 1 フレームの流れ:
- *   時刻 t（再生位置から外挿）→ WASM で t のスペクトル → 事前解析から特徴量 → 背景 → 各ビジュアライザー
- * 描画内容は (シーン, 特徴量, t) だけで決まるので、書き出し（フェーズ3）でも同じ処理を使う。
+ *   時刻 t（再生位置から外挿）→ WASM で t のスペクトル → 事前解析から特徴量 → SceneRenderer で描画
+ * 書き出しも同じ Worker・同じ SceneRenderer（別インスタンス）で行うので、プレビューと結果が一致する。
  */
 import init, { Analyzer, Track } from "../wasm/pkg/awv_core";
-import { BackgroundRenderer } from "./background";
 import { absNowMs, STOPPED, transportTime, type TransportState } from "./clock";
+import { ExportCancelled, runExport } from "./exporter";
 import { computeFeatures, emptyFeatures, type AudioFeatures, type TrackData } from "./features";
 import { PerfStats } from "./perfStats";
 import type { FromWorker, ToWorker } from "./protocol";
-import { OUTPUT_SIZE, pickBackgroundImage, type Scene } from "./scene";
+import { SceneRenderer } from "./renderer";
+import { OUTPUT_SIZE, type Scene } from "./scene";
 import { createSpriteCache } from "./sprites";
-import { REGISTRY } from "../plugins/registry";
-import type { FrameContext, SpriteCache, VisualizerInstance } from "../plugins/types";
+import type { SpriteCache } from "../plugins/types";
 
-const ENGINE_VERSION = "0.2.0";
+const ENGINE_VERSION = "0.3.0";
 const IDLE_SAMPLE_RATE = 48000;
 const IDLE_FFT = 2048;
 
@@ -25,11 +25,12 @@ let ctx: OffscreenCanvasRenderingContext2D | null = null;
 let scene: Scene | null = null;
 let transport: TransportState = STOPPED;
 let running = true;
+let exporting = false;
+let cancelRequested = false;
 let memory: WebAssembly.Memory | null = null;
 let sprites: SpriteCache | null = null;
-const background = new BackgroundRenderer();
+let preview: SceneRenderer | null = null;
 const images = new Map<string, ImageBitmap>();
-const instances = new Map<string, { pluginId: string; inst: VisualizerInstance }>();
 const perf = new PerfStats();
 let features: AudioFeatures = emptyFeatures();
 
@@ -71,6 +72,13 @@ function refreshTrackViews(): void {
   };
 }
 
+/** 曲の時刻 t の特徴量（プレビュー・書き出し共通、決定的） */
+function trackFeatures(t: number): AudioFeatures {
+  track!.spectrum_at(t);
+  if (trackData!.rms.buffer !== memory!.buffer) refreshTrackViews();
+  return computeFeatures(trackData!, t, f32(track!.magnitudes_ptr(), track!.bin_count()), features);
+}
+
 function idleSignal(buf: Float32Array, t: number): void {
   const beat = (t * 2) % 1;
   const kick = Math.exp(-beat * 8);
@@ -84,77 +92,44 @@ function idleSignal(buf: Float32Array, t: number): void {
   }
 }
 
-function updateFeatures(t: number): void {
-  if (!memory) return;
-  if (track && trackData) {
-    track.spectrum_at(t);
-    if (trackData.rms.buffer !== memory.buffer) refreshTrackViews();
-    const spec = f32(track.magnitudes_ptr(), track.bin_count());
-    computeFeatures(trackData, t, spec, features);
-  } else if (idleAnalyzer) {
-    idleSignal(f32(idleAnalyzer.input_ptr(), IDLE_FFT), t);
-    idleAnalyzer.analyze();
-    const spec = f32(idleAnalyzer.magnitudes_ptr(), idleAnalyzer.bin_count());
-    const beat = (t * 2) % 1;
-    features.spectrum = spec;
-    features.kick = Math.exp(-beat * 7);
-    features.bass = Math.min(1, idleAnalyzer.bass() * 3);
-    features.sub = Math.min(1, idleAnalyzer.sub() * 3);
-    features.mid = Math.min(1, idleAnalyzer.mid() * 6);
-    features.high = Math.min(1, idleAnalyzer.high() * 12);
-    features.rms = features.bass;
-    features.onset = features.kick;
-    features.bpm = 120;
-    features.beatIndex = Math.floor(t * 2);
-    features.beatPhase = beat;
-    features.sinceBeat = beat / 2;
-  }
-}
-
-function instanceFor(layerId: string, pluginId: string): VisualizerInstance | null {
-  const cur = instances.get(layerId);
-  if (cur && cur.pluginId === pluginId) return cur.inst;
-  const plugin = REGISTRY[pluginId];
-  if (!plugin) return null;
-  const inst = plugin.create();
-  instances.set(layerId, { pluginId, inst });
-  return inst;
+function idleFeatures(t: number): AudioFeatures {
+  const a = idleAnalyzer!;
+  idleSignal(f32(a.input_ptr(), IDLE_FFT), t);
+  a.analyze();
+  const beat = (t * 2) % 1;
+  features.spectrum = f32(a.magnitudes_ptr(), a.bin_count());
+  features.kick = Math.exp(-beat * 7);
+  features.bass = Math.min(1, a.bass() * 3);
+  features.sub = Math.min(1, a.sub() * 3);
+  features.mid = Math.min(1, a.mid() * 6);
+  features.high = Math.min(1, a.high() * 12);
+  features.rms = features.bass;
+  features.onset = features.kick;
+  features.bpm = 120;
+  features.beatIndex = Math.floor(t * 2);
+  features.beatPhase = beat;
+  features.sinceBeat = beat / 2;
+  return features;
 }
 
 function frame(ts: number): void {
   if (!running) return;
   raf(frame);
-  if (!ctx || !scene || !sprites) return;
+  if (!ctx || !scene || !preview || !memory || exporting) return;
   const interval = lastFrameTs ? ts - lastFrameTs : 1000 / 60;
   lastFrameTs = ts;
   const t0 = performance.now();
 
-  const hasTrack = !!track;
-  const t = hasTrack ? transportTime(transport, absNowMs()) : ts / 1000;
+  const t = track ? transportTime(transport, absNowMs()) : ts / 1000;
   let dt = t - lastT;
   if (dt < 0 || dt > 0.25) {
     // シーク・巻き戻し: 平滑化や残像をリセット
-    for (const { inst } of instances.values()) inst.reset?.();
+    preview.reset();
     dt = 0;
   }
   lastT = t;
-  updateFeatures(t);
-
-  const { width: W, height: H } = OUTPUT_SIZE[scene.aspect];
-  const imgId = pickBackgroundImage(scene.background, scene.aspect);
-  background.render(ctx, W, H, scene.background, imgId ? images.get(imgId) : undefined, imgId, features);
-
-  const fc: FrameContext = { width: W, height: H, t, dt, features, sprites };
-  for (const layer of scene.visualizers) {
-    if (!layer.enabled || layer.opacity <= 0) continue;
-    const inst = instanceFor(layer.id, layer.pluginId);
-    if (!inst) continue;
-    // 注: layer.opacity の反映はフェーズ4（レイヤー合成）で実装する
-    ctx.save();
-    ctx.globalAlpha = 1;
-    inst.render(ctx, fc, layer.params);
-    ctx.restore();
-  }
+  const f = track ? trackFeatures(t) : idleAnalyzer ? idleFeatures(t) : features;
+  preview.render(ctx, scene, images, f, t, dt);
 
   perf.push(performance.now() - t0, interval);
   if (ts - lastPerfPost > 500) {
@@ -169,7 +144,7 @@ function applyCanvasSize(): void {
   if (ctx.canvas.width !== width || ctx.canvas.height !== height) {
     ctx.canvas.width = width;
     ctx.canvas.height = height;
-    background.invalidate();
+    preview?.invalidateBackground();
   }
 }
 
@@ -184,13 +159,39 @@ function loadTrack(pcm: Float32Array, sampleRate: number): void {
   tr.analyze();
   track = tr;
   refreshTrackViews();
-  for (const { inst } of instances.values()) inst.reset?.();
+  preview?.reset();
   features = emptyFeatures(tr.bin_count());
   const beats = new Float32Array(trackData!.beats); // コピーして送る
   post(
     { type: "trackInfo", info: { duration: tr.duration(), bpm: tr.bpm(), beats, analyzeMs: performance.now() - t0 } },
     [beats.buffer],
   );
+}
+
+async function startExport(msg: Extract<ToWorker, { type: "export" }>): Promise<void> {
+  if (exporting) throw new Error("書き出し中です");
+  if (!track || !scene || !sprites) throw new Error("音声が読み込まれていません");
+  exporting = true;
+  cancelRequested = false;
+  try {
+    const result = await runExport({
+      scene,
+      images,
+      sprites,
+      settings: msg.settings,
+      features: trackFeatures,
+      audio: { channels: msg.channels, sampleRate: msg.sampleRate },
+      onProgress: (progress) => post({ type: "exportProgress", progress }),
+      isCancelled: () => cancelRequested,
+    });
+    post({ type: "exportDone", result }, [result.buffer]);
+  } catch (e) {
+    post({ type: "exportError", message: e instanceof Error ? e.message : String(e), cancelled: e instanceof ExportCancelled });
+  } finally {
+    exporting = false;
+    lastFrameTs = 0;
+    preview?.reset();
+  }
 }
 
 self.onmessage = async (e: MessageEvent<ToWorker>) => {
@@ -200,8 +201,9 @@ self.onmessage = async (e: MessageEvent<ToWorker>) => {
       case "init": {
         scene = msg.scene;
         ctx = msg.canvas.getContext("2d", { alpha: false, desynchronized: true }) as OffscreenCanvasRenderingContext2D;
-        applyCanvasSize();
         sprites = createSpriteCache();
+        preview = new SceneRenderer(sprites);
+        applyCanvasSize();
         let wasm = false;
         try {
           const out = await init();
@@ -216,23 +218,23 @@ self.onmessage = async (e: MessageEvent<ToWorker>) => {
         raf(frame);
         break;
       }
-      case "scene": {
+      case "scene":
+        // 書き出し中のシーン変更は、書き出し開始時のシーンには影響しない（runExport は開始時の参照を使う）
         scene = msg.scene;
         applyCanvasSize();
-        const ids = new Set(scene.visualizers.map((v) => v.id));
-        for (const id of instances.keys()) if (!ids.has(id)) instances.delete(id);
+        preview?.prune(scene);
         break;
-      }
       case "transport":
         transport = msg.transport;
         break;
       case "loadTrack":
+        if (exporting) throw new Error("書き出し中は音声を差し替えられません");
         loadTrack(msg.pcm, msg.sampleRate);
         break;
       case "image":
-        images.get(msg.id)?.close();
+        if (!exporting) images.get(msg.id)?.close(); // 書き出し中は使用中かもしれないので閉じない
         images.set(msg.id, msg.bitmap);
-        background.invalidate();
+        preview?.invalidateBackground();
         break;
       case "setRunning":
         if (msg.running && !running) {
@@ -244,8 +246,14 @@ self.onmessage = async (e: MessageEvent<ToWorker>) => {
           running = msg.running;
         }
         break;
+      case "export":
+        await startExport(msg);
+        break;
+      case "cancelExport":
+        cancelRequested = true;
+        break;
     }
   } catch (err) {
-    post({ type: "error", message: String(err) });
+    post({ type: "error", message: err instanceof Error ? err.message : String(err) });
   }
 };

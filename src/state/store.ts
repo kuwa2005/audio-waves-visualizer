@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { PerfSnapshot } from "../engine/perfStats";
+import type { ExportProgress } from "../engine/exportTypes";
 import { defaultScene, type Aspect, type BackgroundLayer, type ParamValue, type Scene, type VisualizerLayer } from "../engine/scene";
 import { findMeta } from "../plugins/catalog";
 import { defaultParams } from "../plugins/types";
@@ -7,6 +8,12 @@ import { defaultParams } from "../plugins/types";
 export type Step = "media" | "visual" | "text" | "export";
 
 export type MediaFile = { name: string; size: number };
+
+export type ExportState =
+  | { state: "idle" }
+  | { state: "running"; progress: ExportProgress | null }
+  | { state: "done"; url: string; fileName: string; size: number; videoCodec: string; audioCodec: string; durationSec: number; elapsedSec: number }
+  | { state: "error"; message: string; cancelled: boolean };
 
 export type TrackInfoState = {
   name: string;
@@ -30,6 +37,7 @@ type State = {
   wasm: boolean | null;
   engineVersion: string | null;
   error: string | null;
+  exportState: ExportState;
 };
 
 type Actions = {
@@ -72,6 +80,7 @@ export const useStore = create<State & Actions>((set) => ({
   wasm: null,
   engineVersion: null,
   error: null,
+  exportState: { state: "idle" },
 
   setStep: (step) => set({ step }),
   setAspect: (aspect) => set((s) => ({ scene: { ...s.scene, aspect } })),

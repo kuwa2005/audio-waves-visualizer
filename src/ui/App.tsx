@@ -2,6 +2,7 @@ import { useState } from "react";
 import { loadFiles } from "../app/controller";
 import type { Aspect } from "../engine/scene";
 import { useStore, type Step } from "../state/store";
+import { ExportPanel } from "./ExportPanel";
 import { Inspector } from "./Inspector";
 import { MediaPanel } from "./MediaPanel";
 import { PerfHud } from "./PerfHud";
@@ -24,6 +25,7 @@ const ASPECTS: Aspect[] = ["16:9", "9:16", "1:1"];
 function StepContent({ step }: { step: Step }) {
   if (step === "media") return <MediaPanel />;
   if (step === "visual") return <VisualPanel />;
+  if (step === "export") return <ExportPanel />;
   return <p className="text-sm text-ink-muted">この機能は今後のフェーズで実装します。</p>;
 }
 
@@ -56,7 +58,7 @@ export function App() {
       <header className="flex items-center gap-3 bg-surface px-4">
         <div className="accent-gradient h-7 w-7 shrink-0 rounded-lg" aria-hidden />
         <h1 className="truncate text-sm font-semibold tracking-wide">Audio Waves Visualizer</h1>
-        <span className="hidden rounded-md bg-raised px-2 py-0.5 text-xs text-ink-muted sm:inline">v0.2 プレビュー版</span>
+        <span className="hidden rounded-md bg-raised px-2 py-0.5 text-xs text-ink-muted sm:inline">v0.3 プレビュー版</span>
         <a href={CLASSIC_URL} data-testid="classic-link" className="classic-link ml-2 shrink-0 rounded-md px-2.5 py-1 text-xs font-bold">
           → 旧版はこちら
         </a>
@@ -75,7 +77,11 @@ export function App() {
               </button>
             ))}
           </div>
-          <button className="accent-gradient hidden rounded-lg px-4 py-1.5 text-sm font-semibold text-white opacity-60 sm:block" disabled title="フェーズ3で実装">
+          <button
+            data-testid="header-export"
+            onClick={() => setStep("export")}
+            className="accent-gradient hidden rounded-lg px-4 py-1.5 text-sm font-semibold text-white shadow-lg transition hover:brightness-110 sm:block"
+          >
             書き出し
           </button>
         </div>
