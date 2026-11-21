@@ -20,6 +20,7 @@ function Field({ def, value, onChange }: { def: ParamDef; value: ParamValue | un
           </span>
           <input
             type="range"
+            data-default={def.default}
             min={def.min}
             max={def.max}
             step={def.step}

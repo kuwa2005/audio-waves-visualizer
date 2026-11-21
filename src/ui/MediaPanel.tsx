@@ -1,6 +1,9 @@
 import { useRef, useState } from "react";
 import { loadFiles, MEDIA_EXTENSIONS } from "../app/controller";
-import { OUTPUT_SIZE, type Aspect } from "../engine/scene";
+import { defaultScene, OUTPUT_SIZE, type Aspect } from "../engine/scene";
+
+/** 素材の調整の初期値（スライダーのダブルクリックで戻す値） */
+const BG_DEFAULT = defaultScene().background;
 import { useStore } from "../state/store";
 
 function formatTime(sec: number): string {
@@ -126,13 +129,13 @@ export function MediaPanel() {
           <span className="flex justify-between">
             暗さ <span className="font-mono text-xs text-ink-muted">{Math.round(bg.dim * 100)}%</span>
           </span>
-          <input type="range" min={0} max={0.9} step={0.05} value={bg.dim} onChange={(e) => setBackground({ dim: Number(e.target.value) })} className="w-full accent-[var(--color-accent-from)]" />
+          <input type="range" data-default={BG_DEFAULT.dim} min={0} max={0.9} step={0.05} value={bg.dim} onChange={(e) => setBackground({ dim: Number(e.target.value) })} className="w-full accent-[var(--color-accent-from)]" />
         </label>
         <label className="block text-sm">
           <span className="flex justify-between">
             ビートでズーム <span className="font-mono text-xs text-ink-muted">{bg.zoomPunch > 0 ? "+" : ""}{Math.round(bg.zoomPunch * 100)}%</span>
           </span>
-          <input data-testid="zoom-punch" type="range" min={-1} max={1} step={0.05} value={bg.zoomPunch} onChange={(e) => setBackground({ zoomPunch: Number(e.target.value) })} className="w-full accent-[var(--color-accent-from)]" />
+          <input data-testid="zoom-punch" type="range" data-default={BG_DEFAULT.zoomPunch} min={-1} max={1} step={0.05} value={bg.zoomPunch} onChange={(e) => setBackground({ zoomPunch: Number(e.target.value) })} className="w-full accent-[var(--color-accent-from)]" />
           <span className="flex justify-between text-[10px] text-ink-muted">
             <span>← ズームアウト</span>
             <span>0</span>
@@ -143,20 +146,20 @@ export function MediaPanel() {
           <span className="flex justify-between">
             背景の倍率 <span className="font-mono text-xs text-ink-muted">{Math.round(bg.scale * 100)}%</span>
           </span>
-          <input data-testid="bg-scale" type="range" min={0.5} max={3} step={0.05} value={bg.scale} onChange={(e) => setBackground({ scale: Number(e.target.value) })} className="w-full accent-[var(--color-accent-from)]" />
+          <input data-testid="bg-scale" type="range" data-default={BG_DEFAULT.scale} min={0.5} max={3} step={0.05} value={bg.scale} onChange={(e) => setBackground({ scale: Number(e.target.value) })} className="w-full accent-[var(--color-accent-from)]" />
         </label>
         <div className="grid grid-cols-2 gap-3">
           <label className="block text-sm">
             <span className="flex justify-between">
               位置（横） <span className="font-mono text-xs text-ink-muted">{bg.panX.toFixed(2)}</span>
             </span>
-            <input data-testid="bg-pan-x" type="range" min={-1} max={1} step={0.01} value={bg.panX} onChange={(e) => setBackground({ panX: Number(e.target.value) })} className="w-full accent-[var(--color-accent-from)]" />
+            <input data-testid="bg-pan-x" type="range" data-default={BG_DEFAULT.panX} min={-1} max={1} step={0.01} value={bg.panX} onChange={(e) => setBackground({ panX: Number(e.target.value) })} className="w-full accent-[var(--color-accent-from)]" />
           </label>
           <label className="block text-sm">
             <span className="flex justify-between">
               位置（縦） <span className="font-mono text-xs text-ink-muted">{bg.panY.toFixed(2)}</span>
             </span>
-            <input data-testid="bg-pan-y" type="range" min={-1} max={1} step={0.01} value={bg.panY} onChange={(e) => setBackground({ panY: Number(e.target.value) })} className="w-full accent-[var(--color-accent-from)]" />
+            <input data-testid="bg-pan-y" type="range" data-default={BG_DEFAULT.panY} min={-1} max={1} step={0.01} value={bg.panY} onChange={(e) => setBackground({ panY: Number(e.target.value) })} className="w-full accent-[var(--color-accent-from)]" />
           </label>
         </div>
         <div className="grid grid-cols-2 gap-2">
@@ -185,13 +188,13 @@ export function MediaPanel() {
           <span className="flex justify-between">
             画面のフェードイン <span className="font-mono text-xs text-ink-muted">{bg.fadeIn.toFixed(1)} 秒</span>
           </span>
-          <input data-testid="fade-in" type="range" min={0} max={5} step={0.1} value={bg.fadeIn} onChange={(e) => setBackground({ fadeIn: Number(e.target.value) })} className="w-full accent-[var(--color-accent-from)]" />
+          <input data-testid="fade-in" type="range" data-default={BG_DEFAULT.fadeIn} min={0} max={5} step={0.1} value={bg.fadeIn} onChange={(e) => setBackground({ fadeIn: Number(e.target.value) })} className="w-full accent-[var(--color-accent-from)]" />
         </label>
         <label className="block text-sm">
           <span className="flex justify-between">
             画面のフェードアウト <span className="font-mono text-xs text-ink-muted">{bg.fadeOut.toFixed(1)} 秒</span>
           </span>
-          <input data-testid="fade-out" type="range" min={0} max={5} step={0.1} value={bg.fadeOut} onChange={(e) => setBackground({ fadeOut: Number(e.target.value) })} className="w-full accent-[var(--color-accent-from)]" />
+          <input data-testid="fade-out" type="range" data-default={BG_DEFAULT.fadeOut} min={0} max={5} step={0.1} value={bg.fadeOut} onChange={(e) => setBackground({ fadeOut: Number(e.target.value) })} className="w-full accent-[var(--color-accent-from)]" />
         </label>
         <p className="text-[11px] leading-4 text-ink-muted">画面全体（背景・スペアナ・エフェクト・文字）が、書き出す範囲（「書き出し」で設定）の始まりで黒から現れ、終わりで黒へ消えます。プレビューにも反映されます。</p>
       </section>
