@@ -1,11 +1,22 @@
 import { useRef, useState } from "react";
 import { loadFiles, MEDIA_EXTENSIONS } from "../app/controller";
+import { OUTPUT_SIZE, type Aspect } from "../engine/scene";
 import { useStore } from "../state/store";
 
 function formatTime(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+/** 今の比率で使われる背景画像の「全体が見える倍率」（100% = 画面を覆う大きさ に対する比） */
+function containScale(images: { aspect: Aspect; width: number; height: number }[], aspect: Aspect): number {
+  const im = images.find((i) => i.aspect === aspect) ?? images.find((i) => i.aspect === "16:9") ?? images.find((i) => i.aspect === "1:1") ?? images[0];
+  if (!im) return 1;
+  const { width: W, height: H } = OUTPUT_SIZE[aspect];
+  const cover = Math.max(W / im.width, H / im.height);
+  const contain = Math.min(W / im.width, H / im.height);
+  return Math.max(0.5, Math.min(1, contain / cover));
 }
 
 const ACCEPT = [...MEDIA_EXTENSIONS.audio, ...MEDIA_EXTENSIONS.image, ...MEDIA_EXTENSIONS.subtitle].map((e) => `.${e}`).join(",");
@@ -24,6 +35,7 @@ export function MediaPanel() {
   const subs = useStore((s) => s.scene.subtitles);
   const bg = useStore((s) => s.scene.background);
   const setBackground = useStore((s) => s.setBackground);
+  const aspect = useStore((s) => s.scene.aspect);
 
   return (
     <div className="space-y-5">
@@ -147,14 +159,28 @@ export function MediaPanel() {
             <input data-testid="bg-pan-y" type="range" min={-1} max={1} step={0.01} value={bg.panY} onChange={(e) => setBackground({ panY: Number(e.target.value) })} className="w-full accent-[var(--color-accent-from)]" />
           </label>
         </div>
-        <button
-          data-testid="bg-fit-reset"
-          onClick={() => setBackground({ scale: 1, panX: 0, panY: 0 })}
-          className="w-full rounded-lg border border-line px-3 py-1 text-xs text-ink-muted hover:text-ink"
-        >
-          倍率と位置を元に戻す
-        </button>
-        <p className="text-[11px] leading-4 text-ink-muted">100% は画面いっぱい。小さくすると周りが黒、大きくすると位置で見せる場所を選べます。</p>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            data-testid="bg-fit-reset"
+            onClick={() => setBackground({ scale: 1, panX: 0, panY: 0 })}
+            className="rounded-lg border border-line px-2 py-1 text-xs text-ink-muted hover:text-ink"
+            title="画面をちょうど覆う大きさ（100%）"
+          >
+            画面いっぱい（100%）
+          </button>
+          <button
+            data-testid="bg-fit-contain"
+            disabled={images.length === 0}
+            onClick={() => setBackground({ scale: containScale(images, aspect), panX: 0, panY: 0 })}
+            className="rounded-lg border border-line px-2 py-1 text-xs text-ink-muted hover:text-ink disabled:opacity-40"
+            title="画像の全体が見える大きさ（縦横比が違うと周りが黒くなる）"
+          >
+            画像全体を表示
+          </button>
+        </div>
+        <p className="text-[11px] leading-4 text-ink-muted">
+          100% は画面をちょうど覆う大きさ（画面と同じ縦横比の画像なら全体がぴったり収まる）。小さくすると周りが黒、大きくすると位置で見せる場所を選べます。
+        </p>
         <label className="block text-sm">
           <span className="flex justify-between">
             画面のフェードイン <span className="font-mono text-xs text-ink-muted">{bg.fadeIn.toFixed(1)} 秒</span>

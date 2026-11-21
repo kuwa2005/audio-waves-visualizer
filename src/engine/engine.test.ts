@@ -389,3 +389,20 @@ describe("光の強さ（パルスリング・ワープトンネル）", () => {
     }
   });
 });
+
+import { backgroundZoom } from "./background";
+
+describe("背景の倍率とビートでズーム", () => {
+  it("100% with zoom 0 or zoom-in is exactly the cover size at rest", () => {
+    expect(backgroundZoom(1, 0, 0, 0)).toBe(1);
+    expect(backgroundZoom(1, 0.4, 0, 0)).toBe(1);
+    expect(backgroundZoom(1, 0.4, 1, 1)).toBeGreaterThan(1); // ビートで大きくなる
+  });
+  it("zoom-out is compensated so the smallest moment equals the chosen scale (no black edges)", () => {
+    for (const zp of [-0.2, -0.5, -1]) {
+      expect(backgroundZoom(1, zp, 1, 1)).toBeCloseTo(1, 10); // いちばん縮んだ瞬間 = 100%
+      expect(backgroundZoom(1, zp, 0, 0)).toBeGreaterThan(1); // 平常時は少し大きめ
+      expect(backgroundZoom(0.8, zp, 1, 1)).toBeCloseTo(0.8, 10);
+    }
+  });
+});
