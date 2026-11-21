@@ -4,6 +4,8 @@
 //! 毎フレームの配列コピーや確保をしない。
 
 pub mod features;
+pub mod track;
+pub mod wav;
 
 use realfft::{RealFftPlanner, RealToComplex};
 use std::sync::Arc;
@@ -94,5 +96,87 @@ impl Analyzer {
     }
     pub fn high(&self) -> f32 {
         self.bands.high
+    }
+}
+
+/// 読み込んだ曲（モノラル PCM）と、その事前解析結果を WASM メモリ上に保持する。
+/// 描画時は `spectrum_at(秒)` でその時刻のスペクトルを求める（時刻だけで結果が決まる＝決定的）。
+#[wasm_bindgen]
+pub struct Track {
+    pcm: Vec<f32>,
+    analysis: track::TrackAnalysis,
+    analyzer: Analyzer,
+}
+
+#[wasm_bindgen]
+impl Track {
+    #[wasm_bindgen(constructor)]
+    pub fn new(sample_rate: f32, length: usize) -> Track {
+        Track {
+            pcm: vec![0.0; length],
+            analysis: track::TrackAnalysis { sample_rate, hop: track::HOP, ..Default::default() },
+            analyzer: Analyzer::new(track::FFT_SIZE, sample_rate),
+        }
+    }
+
+    /// JS 側がモノラル PCM を書き込む先（長さ length）
+    pub fn pcm_ptr(&mut self) -> *mut f32 {
+        self.pcm.as_mut_ptr()
+    }
+
+    pub fn analyze(&mut self) {
+        self.analysis = track::analyze_track(&self.pcm, self.analysis.sample_rate);
+    }
+
+    pub fn duration(&self) -> f32 {
+        self.pcm.len() as f32 / self.analysis.sample_rate
+    }
+    pub fn frames(&self) -> usize {
+        self.analysis.frames
+    }
+    pub fn frame_rate(&self) -> f32 {
+        self.analysis.frame_rate()
+    }
+    /// フレーム i の中心時刻 = i / frame_rate + center_offset
+    pub fn center_offset(&self) -> f32 {
+        (track::FFT_SIZE as f32 / 2.0) / self.analysis.sample_rate
+    }
+    pub fn bpm(&self) -> f32 {
+        self.analysis.bpm
+    }
+    pub fn beat_count(&self) -> usize {
+        self.analysis.beats.len()
+    }
+    pub fn beats_ptr(&self) -> *const f32 {
+        self.analysis.beats.as_ptr()
+    }
+    pub fn rms_ptr(&self) -> *const f32 {
+        self.analysis.rms.as_ptr()
+    }
+    pub fn onset_ptr(&self) -> *const f32 {
+        self.analysis.onset.as_ptr()
+    }
+    /// [sub, bass, mid, high] × frames
+    pub fn bands_ptr(&self) -> *const f32 {
+        self.analysis.bands.as_ptr()
+    }
+
+    /// 時刻 t（秒）を中心とした窓でスペクトルを計算する。結果は magnitudes_ptr から読む。
+    pub fn spectrum_at(&mut self, t: f32) {
+        let n = track::FFT_SIZE as isize;
+        let center = (t * self.analysis.sample_rate) as isize;
+        let start = center - n / 2;
+        let len = self.pcm.len() as isize;
+        for i in 0..n {
+            let s = start + i;
+            self.analyzer.input[i as usize] = if s >= 0 && s < len { self.pcm[s as usize] } else { 0.0 };
+        }
+        self.analyzer.analyze();
+    }
+    pub fn magnitudes_ptr(&self) -> *const f32 {
+        self.analyzer.magnitudes_ptr()
+    }
+    pub fn bin_count(&self) -> usize {
+        self.analyzer.bin_count()
     }
 }
