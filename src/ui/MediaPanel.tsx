@@ -36,12 +36,8 @@ export function MediaPanel() {
             setOver(true);
           }}
           onDragLeave={() => setOver(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setOver(false);
-            void loadFiles(e.dataTransfer.files);
-          }}
+          // 読み込みと「ドロップ待ち」表示の解除はアプリ全体（App）で行う。ここでは強調表示を消すだけ
+          onDrop={() => setOver(false)}
           className={`flex w-full flex-col items-center gap-2 rounded-2xl border-2 border-dashed px-4 py-7 text-center transition ${
             over ? "border-accent-to bg-accent-to/10" : "border-line bg-raised/40 hover:border-accent-from hover:bg-raised"
           }`}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { loadFiles } from "../app/controller";
 import type { Aspect } from "../engine/scene";
 import { useStore, type Step } from "../state/store";
@@ -42,6 +42,22 @@ export function App() {
   const error = useStore((s) => s.error);
   const loading = useStore((s) => s.loading);
   const [dragging, setDragging] = useState(false);
+
+  // ウィンドウの外へ出た・ドラッグを取り消した・どこかでドロップした、のいずれでも「ドロップ待ち」表示を解除する
+  useEffect(() => {
+    const off = () => setDragging(false);
+    const onLeave = (e: DragEvent) => {
+      if (!e.relatedTarget) off();
+    };
+    window.addEventListener("drop", off, true);
+    window.addEventListener("dragend", off, true);
+    window.addEventListener("dragleave", onLeave, true);
+    return () => {
+      window.removeEventListener("drop", off, true);
+      window.removeEventListener("dragend", off, true);
+      window.removeEventListener("dragleave", onLeave, true);
+    };
+  }, []);
 
   return (
     <div
