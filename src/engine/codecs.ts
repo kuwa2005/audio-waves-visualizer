@@ -2,7 +2,7 @@
  * 書き出しに使うコーデックの選択（Worker・メインスレッドの両方から使う）。
  * 再生互換性の高い順（H.264 / AAC）に試し、使えなければ代替に切り替える。
  */
-export type VideoChoice = { config: VideoEncoderConfig; mux: "avc" | "vp9" | "av1"; label: string };
+export type VideoChoice = { config: VideoEncoderConfig; mux: "avc" | "vp9" | "av1"; label: string; hardware: boolean };
 export type AudioChoice = { config: AudioEncoderConfig; mux: "aac" | "opus"; label: string };
 
 /** H.264 のレベル: 1080p60 や 1080x1920 を収めるため 4.2、それを超える場合は 5.1 */
@@ -12,18 +12,27 @@ function avcCodec(width: number, height: number, fps: number): string {
   return `avc1.6400${level}`;
 }
 
+/**
+ * 映像エンコーダーを選ぶ。各コーデックで GPU（ハードウェア）エンコードを優先し、
+ * 使えなければソフトウェア（CPU）で書き出す。label に「GPU」「CPU」を付けて画面に表示する。
+ */
 export async function pickVideo(width: number, height: number, fps: number, bitrate: number): Promise<VideoChoice> {
   const base = { width, height, bitrate, framerate: fps, latencyMode: "quality" as const };
-  const candidates: VideoChoice[] = [
-    { config: { ...base, codec: avcCodec(width, height, fps), avc: { format: "avc" } }, mux: "avc", label: "H.264" },
-    { config: { ...base, codec: "vp09.00.41.08" }, mux: "vp9", label: "VP9" },
-    { config: { ...base, codec: "av01.0.09M.08" }, mux: "av1", label: "AV1" },
+  const codecs: { codec: string; mux: VideoChoice["mux"]; name: string; extra?: Partial<VideoEncoderConfig> }[] = [
+    { codec: avcCodec(width, height, fps), mux: "avc", name: "H.264", extra: { avc: { format: "avc" } } },
+    { codec: "vp09.00.41.08", mux: "vp9", name: "VP9" },
+    { codec: "av01.0.09M.08", mux: "av1", name: "AV1" },
   ];
-  for (const c of candidates) {
-    try {
-      if ((await VideoEncoder.isConfigSupported(c.config)).supported) return c;
-    } catch {
-      /* 次の候補へ */
+  for (const c of codecs) {
+    for (const hw of ["prefer-hardware", "prefer-software"] as const) {
+      const config: VideoEncoderConfig = { ...base, ...c.extra, codec: c.codec, hardwareAcceleration: hw };
+      try {
+        if ((await VideoEncoder.isConfigSupported(config)).supported) {
+          return { config, mux: c.mux, label: `${c.name}（${hw === "prefer-hardware" ? "GPU" : "CPU"}）`, hardware: hw === "prefer-hardware" };
+        }
+      } catch {
+        /* 次の候補へ */
+      }
     }
   }
   throw new Error("このブラウザでは動画のエンコード（H.264 / VP9 / AV1）が使えません");

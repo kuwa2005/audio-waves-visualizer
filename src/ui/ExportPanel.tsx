@@ -204,6 +204,11 @@ export function ExportPanel() {
           <p className="text-ink-muted">
             形式: MP4（映像 {codecs.video} / 音声 AAC{codecs.audio !== "AAC" ? "（互換モード）" : ""}）
           </p>
+          <p data-testid="encoder-note" className="leading-4 text-ink-muted">
+            {codecs.video.includes("GPU")
+              ? "映像は GPU（ハードウェア）でエンコードします。"
+              : "この環境では GPU エンコードが使えないため、CPU でエンコードします（時間がかかることがあります）。"}
+          </p>
           {codecs.audio !== "AAC" && (
             <p data-testid="aac-compat-note" className="leading-4 text-ink-muted">
               このブラウザは AAC を直接作れないため、内蔵の変換プログラムで AAC にします（初回のみ約 32MB を読み込み）。どのプレーヤーでも音が出ます。

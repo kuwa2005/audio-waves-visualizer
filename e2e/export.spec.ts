@@ -58,6 +58,9 @@ for (const [aspect, w, h] of [
     // 使われるコーデックが事前に表示され、AAC 以外なら警告が出る
     await expect(page.getByTestId("codec-info")).toBeVisible();
     await expect(page.getByTestId("codec-info")).toContainText("音声 AAC");
+    // GPU が使えればハードウェア、無ければ CPU と表示される（このテスト環境は GPU なし）
+    await expect(page.getByTestId("codec-info")).toContainText(/H\.264（(GPU|CPU)）/);
+    console.log(`[${aspect}] encoder:`, await page.getByTestId("encoder-note").innerText());
     // 16:9 は「自動でダウンロード: はい（既定）」、9:16 は「いいえ」で手動ダウンロードを確認する
     const auto = aspect === "16:9";
     await expect(page.getByTestId("auto-download-yes")).toHaveAttribute("aria-checked", "true");
