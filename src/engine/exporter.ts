@@ -5,14 +5,12 @@
  * 実時間に縛られないので、端末が速ければ実時間より速く、遅くてもコマ落ちなく書き出せる。
  */
 import { ArrayBufferTarget, Muxer } from "mp4-muxer";
+import { pickAudio, pickVideo } from "./codecs";
 import type { AudioFeatures } from "./features";
 import { frameCount, type ExportProgress, type ExportResult, type ExportSettings } from "./exportTypes";
 import { SceneRenderer, type RenderEnv } from "./renderer";
 import { OUTPUT_SIZE, type Scene } from "./scene";
 import type { SpriteCache } from "../plugins/types";
-
-type VideoChoice = { config: VideoEncoderConfig; mux: "avc" | "vp9" | "av1"; label: string };
-type AudioChoice = { config: AudioEncoderConfig; mux: "aac" | "opus"; label: string };
 
 export type ExportJob = {
   scene: Scene;
@@ -31,47 +29,6 @@ export class ExportCancelled extends Error {
   constructor() {
     super("書き出しを中止しました");
   }
-}
-
-/** H.264 のレベル: 1080p60 や 1080x1920 を収めるため 4.2、それを超える場合は 5.1 */
-function avcCodec(width: number, height: number, fps: number): string {
-  const mbs = Math.ceil(width / 16) * Math.ceil(height / 16);
-  const level = mbs <= 8192 && mbs * fps <= 522_240 ? "2a" : "33";
-  return `avc1.6400${level}`;
-}
-
-async function pickVideo(width: number, height: number, fps: number, bitrate: number): Promise<VideoChoice> {
-  const base = { width, height, bitrate, framerate: fps, latencyMode: "quality" as const };
-  const candidates: VideoChoice[] = [
-    { config: { ...base, codec: avcCodec(width, height, fps), avc: { format: "avc" } }, mux: "avc", label: "H.264" },
-    { config: { ...base, codec: "vp09.00.41.08" }, mux: "vp9", label: "VP9" },
-    { config: { ...base, codec: "av01.0.09M.08" }, mux: "av1", label: "AV1" },
-  ];
-  for (const c of candidates) {
-    try {
-      if ((await VideoEncoder.isConfigSupported(c.config)).supported) return c;
-    } catch {
-      /* 次の候補へ */
-    }
-  }
-  throw new Error("このブラウザでは動画のエンコード（H.264 / VP9 / AV1）が使えません");
-}
-
-async function pickAudio(sampleRate: number, channels: number): Promise<AudioChoice> {
-  const ch = Math.min(2, channels);
-  const candidates: AudioChoice[] = [];
-  if (sampleRate === 44100 || sampleRate === 48000) {
-    candidates.push({ config: { codec: "mp4a.40.2", sampleRate, numberOfChannels: ch, bitrate: 256_000 }, mux: "aac", label: "AAC" });
-  }
-  candidates.push({ config: { codec: "opus", sampleRate: 48000, numberOfChannels: ch, bitrate: 192_000 }, mux: "opus", label: "Opus" });
-  for (const c of candidates) {
-    try {
-      if ((await AudioEncoder.isConfigSupported(c.config)).supported) return c;
-    } catch {
-      /* 次の候補へ */
-    }
-  }
-  throw new Error("このブラウザでは音声のエンコード（AAC / Opus）が使えません");
 }
 
 /** 線形補間による簡易リサンプリング（Opus の 48kHz 要件のため） */

@@ -47,6 +47,10 @@ for (const [aspect, w, h] of [
     await page.getByTestId("range-start").fill("1:00");
     await page.getByTestId("range-end").fill("1:05");
     await page.getByRole("button", { name: "30fps" }).click();
+    // 使われるコーデックが事前に表示され、AAC 以外なら警告が出る
+    await expect(page.getByTestId("codec-info")).toBeVisible();
+    const info = await page.getByTestId("codec-info").innerText();
+    if (!info.includes("音声 AAC")) await expect(page.getByTestId("opus-warning")).toBeVisible();
     await page.getByTestId("export-start").click();
 
     await expect(page.getByTestId("export-done")).toBeVisible({ timeout: 200_000 });

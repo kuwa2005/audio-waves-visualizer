@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { pickAudio, pickVideo } from "../engine/codecs";
 import { cancelExport, startExport } from "../app/controller";
 import { clampRange, QUALITY_PRESETS } from "../engine/exportTypes";
 import { OUTPUT_SIZE } from "../engine/scene";
@@ -34,6 +35,20 @@ export function ExportPanel() {
   const [whole, setWhole] = useState(true);
   const [startText, setStartText] = useState("0:00");
   const [endText, setEndText] = useState("0:30");
+  const [codecs, setCodecs] = useState<{ video: string; audio: string } | { error: string } | null>(null);
+  const aspectForProbe = useStore((s) => s.scene.aspect);
+
+  // 書き出し前に、この環境で使えるコーデックを確認して表示する
+  useEffect(() => {
+    let alive = true;
+    const { width, height } = OUTPUT_SIZE[aspectForProbe];
+    Promise.all([pickVideo(width, height, fps, 14_000_000), pickAudio(48000, 2)])
+      .then(([v, a]) => alive && setCodecs({ video: v.label, audio: a.label }))
+      .catch((e) => alive && setCodecs({ error: e instanceof Error ? e.message : String(e) }));
+    return () => {
+      alive = false;
+    };
+  }, [aspectForProbe, fps]);
 
   if (!track) return <p className="text-sm text-ink-muted">先に「素材」で音声を読み込んでください。</p>;
 
@@ -100,6 +115,26 @@ export function ExportPanel() {
           </p>
         )}
       </section>
+
+      {codecs && "error" in codecs && (
+        <p role="alert" className="rounded-lg border border-bad/40 bg-bad/10 px-3 py-2 text-xs text-bad">
+          {codecs.error}
+        </p>
+      )}
+      {codecs && !("error" in codecs) && (
+        <div className="space-y-2 text-xs" data-testid="codec-info">
+          <p className="text-ink-muted">
+            形式: MP4（映像 {codecs.video} / 音声 {codecs.audio}）
+          </p>
+          {codecs.audio !== "AAC" && (
+            <p role="alert" data-testid="opus-warning" className="rounded-lg border border-warn/50 bg-warn/10 px-3 py-2 leading-5 text-warn">
+              このブラウザでは AAC 音声を作れないため、音声は Opus になります。Windows 標準の「メディア プレーヤー」や
+              macOS の QuickTime では<strong>音が出ません</strong>（VLC・ブラウザ・YouTube などでは再生できます）。
+              Windows / macOS の Chrome または Edge で書き出すと AAC になります。
+            </p>
+          )}
+        </div>
+      )}
 
       {!running && (
         <button
