@@ -14,6 +14,8 @@ export default defineConfig({
   base: "/visualizer/",
   plugins: [react(), tailwindcss()],
   worker: { format: "es" },
+  // ffmpeg.wasm は内部で Worker を作るため事前バンドルしない
+  optimizeDeps: { exclude: ["@ffmpeg/ffmpeg", "@ffmpeg/util"] },
   server: { headers: isolationHeaders },
   preview: { headers: isolationHeaders },
   build: { target: "es2022" },

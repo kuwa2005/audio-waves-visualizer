@@ -99,8 +99,19 @@ function drawPlinth(g: C2D, w: number, h: number, finish: Finish, s: number, see
   g.restore();
 }
 
+/** 画像を中心 (c,c)・半径 r の円に切り抜いて敷き詰める */
+function drawArtCircle(g: C2D, c: number, r: number, art: ImageBitmap): void {
+  g.save();
+  g.beginPath();
+  g.arc(c, c, r, 0, Math.PI * 2);
+  g.clip();
+  const sc = Math.max((r * 2) / art.width, (r * 2) / art.height);
+  g.drawImage(art, c - (art.width * sc) / 2, c - (art.height * sc) / 2, art.width * sc, art.height * sc);
+  g.restore();
+}
+
 /** 回転する部分（プラッターの縁・ストロボドット・レコード・ラベル）を描く。中心 (R,R) */
-function drawDisc(g: C2D, R: number, art: ImageBitmap | undefined, seed: number): void {
+function drawDisc(g: C2D, R: number, art: ImageBitmap | undefined, seed: number, picture: "label" | "full"): void {
   const c = R;
   // プラッターの縁（金属）
   g.beginPath();
@@ -132,25 +143,41 @@ function drawDisc(g: C2D, R: number, art: ImageBitmap | undefined, seed: number)
   g.arc(c, c, vinylR, 0, Math.PI * 2);
   g.fillStyle = "#08080a";
   g.fill();
-  // 溝（細い同心円を明るさを変えて重ねる）と曲間の隙間
   const labelR = R * 0.33;
+  const full = picture === "full" && !!art;
+  if (full) {
+    // ピクチャーレコード: 盤面全体に画像。透明な盤の質感として周辺を少し暗くする
+    drawArtCircle(g, c, vinylR, art!);
+    const vg = g.createRadialGradient(c, c, labelR, c, c, vinylR);
+    vg.addColorStop(0, "rgba(0,0,0,0)");
+    vg.addColorStop(0.85, "rgba(0,0,0,0.12)");
+    vg.addColorStop(1, "rgba(0,0,0,0.45)");
+    g.fillStyle = vg;
+    g.beginPath();
+    g.arc(c, c, vinylR, 0, Math.PI * 2);
+    g.fill();
+  }
+  // 溝（細い同心円を明るさを変えて重ねる）と曲間の隙間
   const rnd = mulberry32(seed);
   const gaps = [0.88, 0.76, 0.64, 0.53].map((x) => x + (rnd() - 0.5) * 0.04);
   for (let rr = vinylR * 0.985; rr > labelR * 1.18; rr -= Math.max(0.6, R * 0.0028)) {
     const f = rr / vinylR;
     const inGap = gaps.some((gp) => Math.abs(f - gp) < 0.006);
-    g.strokeStyle = inGap ? "rgba(0,0,0,0.9)" : `rgba(200,205,220,${0.025 + rnd() * 0.05})`;
-    g.lineWidth = inGap ? R * 0.006 : 0.7;
+    // ピクチャーレコードでは溝をごく薄くして画像を見せる
+    g.strokeStyle = inGap ? `rgba(0,0,0,${full ? 0.35 : 0.9})` : `rgba(200,205,220,${(0.025 + rnd() * 0.05) * (full ? 0.5 : 1)})`;
+    g.lineWidth = inGap ? R * (full ? 0.003 : 0.006) : 0.7;
     g.beginPath();
     g.arc(c, c, rr, 0, Math.PI * 2);
     g.stroke();
   }
-  // ラベル（背景画像を丸く切り抜く）
+  // ラベル（背景画像を丸く切り抜く）。ピクチャーレコードでは盤面の画像をそのまま見せる
   g.save();
   g.beginPath();
   g.arc(c, c, labelR, 0, Math.PI * 2);
   g.clip();
-  if (art) {
+  if (full) {
+    /* 盤面全体の画像が見えているので何も描かない */
+  } else if (art) {
     const sc = Math.max((labelR * 2) / art.width, (labelR * 2) / art.height);
     g.drawImage(art, c - (art.width * sc) / 2, c - (art.height * sc) / 2, art.width * sc, art.height * sc);
   } else {
@@ -161,11 +188,13 @@ function drawDisc(g: C2D, R: number, art: ImageBitmap | undefined, seed: number)
     g.fillRect(c - labelR, c - labelR, labelR * 2, labelR * 2);
   }
   g.restore();
-  g.strokeStyle = "rgba(0,0,0,0.6)";
-  g.lineWidth = R * 0.006;
-  g.beginPath();
-  g.arc(c, c, labelR, 0, Math.PI * 2);
-  g.stroke();
+  if (!full) {
+    g.strokeStyle = "rgba(0,0,0,0.6)";
+    g.lineWidth = R * 0.006;
+    g.beginPath();
+    g.arc(c, c, labelR, 0, Math.PI * 2);
+    g.stroke();
+  }
   // 回転が分かる目印（ラベル上の小さな刻印）
   g.fillStyle = "rgba(255,255,255,0.75)";
   g.beginPath();
@@ -260,7 +289,8 @@ export const turntable: VisualizerPlugin = {
         const L = turntableLayout(params, W, H);
         const s = L.w / 1000; // 基準幅 1000px に対する倍率
         const R = L.platterR;
-        const k = `${finish}:${Math.round(L.w)}:${frame.artworkId ?? "-"}`;
+        const picture = str(params, "picture", "label") === "full" ? "full" : "label";
+        const k = `${finish}:${picture}:${Math.round(L.w)}:${frame.artworkId ?? "-"}`;
         if (k !== key) {
           key = k;
           plinth = new OffscreenCanvas(Math.ceil(L.w), Math.ceil(L.h));
@@ -314,7 +344,7 @@ export const turntable: VisualizerPlugin = {
           pg.fillRect(ax - 8 * s, ay + L.armLen * 0.62, 16 * s, 34 * s);
 
           disc = new OffscreenCanvas(Math.ceil(R * 2), Math.ceil(R * 2));
-          drawDisc(disc.getContext("2d")!, R, frame.artwork, 7);
+          drawDisc(disc.getContext("2d")!, R, frame.artwork, 7, picture);
           sheen = new OffscreenCanvas(Math.ceil(R * 2), Math.ceil(R * 2));
           drawSheen(sheen.getContext("2d")!, R);
         }
@@ -322,7 +352,8 @@ export const turntable: VisualizerPlugin = {
         // ---- 毎フレーム ----
         const rpm = Number(str(params, "rpm", "33")) === 45 ? 45 : 100 / 3;
         // 曲の頭 1 秒で回り始める（角度 = 速度の積分）
-        const spin = rpm / 60 * Math.PI * 2;
+        // 回転速度の倍率（0.1〜1）。角度は時刻から決まるので、書き出しでも同じ回転になる
+        const spin = (rpm / 60) * Math.PI * 2 * Math.min(1, Math.max(0.1, num(params, "spinScale", 1)));
         const ang = t < 1 ? (spin * t * t) / 2 : spin * (t - 0.5);
         const vib = f.kick * num(params, "vibration", 0.4) * 2 * s;
 

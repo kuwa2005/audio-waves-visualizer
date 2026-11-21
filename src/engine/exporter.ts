@@ -6,6 +6,7 @@
  */
 import { ArrayBufferTarget, Muxer } from "mp4-muxer";
 import { pickAudio, pickVideo } from "./codecs";
+import type { PreEncodedAac } from "../audio/aacFallback";
 import type { AudioFeatures } from "./features";
 import { applyAudioFade, frameCount, type ExportProgress, type ExportResult, type ExportSettings } from "./exportTypes";
 import { SceneRenderer, type RenderEnv } from "./renderer";
@@ -21,6 +22,8 @@ export type ExportJob = {
   features(t: number): AudioFeatures;
   env: RenderEnv;
   audio: { channels: Float32Array[]; sampleRate: number };
+  /** ブラウザが AAC を作れない環境で、メインスレッドが ffmpeg.wasm で作った AAC（あればこちらを使う） */
+  aac?: PreEncodedAac;
   onProgress(p: ExportProgress): void;
   isCancelled(): boolean;
 };
@@ -60,15 +63,16 @@ export async function runExport(job: ExportJob): Promise<ExportResult> {
   job.onProgress({ phase: "preparing", frame: 0, totalFrames: total, speed: 0, elapsedSec: 0 });
 
   const video = await pickVideo(width, height, fps, settings.videoBitrate);
-  const audio = await pickAudio(job.audio.sampleRate, job.audio.channels.length);
-  const audioRate = audio.config.sampleRate;
-  const audioCh = audio.config.numberOfChannels;
+  const pre = job.aac;
+  const audio = pre ? null : await pickAudio(job.audio.sampleRate, job.audio.channels.length);
+  const audioRate = pre ? pre.sampleRate : audio!.config.sampleRate;
+  const audioCh = pre ? pre.channels : audio!.config.numberOfChannels;
 
   const target = new ArrayBufferTarget();
   const muxer = new Muxer({
     target,
     video: { codec: video.mux, width, height, frameRate: fps },
-    audio: { codec: audio.mux, numberOfChannels: audioCh, sampleRate: audioRate },
+    audio: { codec: pre ? "aac" : audio!.mux, numberOfChannels: audioCh, sampleRate: audioRate },
     fastStart: "in-memory",
     firstTimestampBehavior: "offset",
   });
@@ -83,7 +87,7 @@ export async function runExport(job: ExportJob): Promise<ExportResult> {
     output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
     error: (e) => (encodeError = e),
   });
-  aenc.configure(audio.config);
+  if (audio) aenc.configure(audio.config);
 
   const close = () => {
     if (venc.state !== "closed") venc.close();
@@ -91,7 +95,20 @@ export async function runExport(job: ExportJob): Promise<ExportResult> {
   };
 
   try {
-    // ---- 音声（範囲を切り出し、必要ならリサンプリングして 1024 サンプルずつ） ----
+    // ---- 音声 ----
+    if (pre) {
+      // エンコード済み AAC（1 フレーム = 1024 サンプル）をそのまま格納
+      const frameUs = (1024 / pre.sampleRate) * 1e6;
+      let off = 0;
+      for (let i = 0; i < pre.sizes.length; i++) {
+        const meta: EncodedAudioChunkMetadata | undefined =
+          i === 0 ? { decoderConfig: { codec: "mp4a.40.2", sampleRate: pre.sampleRate, numberOfChannels: pre.channels, description: pre.asc } } : undefined;
+        muxer.addAudioChunkRaw(pre.data.subarray(off, off + pre.sizes[i]), "key", Math.round(i * frameUs), Math.round(frameUs), meta);
+        off += pre.sizes[i];
+      }
+    }
+    // 範囲を切り出し、必要ならリサンプリングして 1024 サンプルずつ AudioEncoder へ
+    if (audio) {
     const srcRate = job.audio.sampleRate;
     const from = Math.floor(settings.start * srcRate);
     const to = Math.min(Math.floor(settings.end * srcRate), job.audio.channels[0].length);
@@ -122,6 +139,7 @@ export async function runExport(job: ExportJob): Promise<ExportResult> {
       ad.close();
       if (aenc.encodeQueueSize > 32) await yieldToEvents();
     }
+    }
 
     // ---- 映像 ----
     const canvas = new OffscreenCanvas(width, height);
@@ -150,14 +168,14 @@ export async function runExport(job: ExportJob): Promise<ExportResult> {
 
     job.onProgress({ phase: "finalizing", frame: total, totalFrames: total, speed: 0, elapsedSec: (performance.now() - t0) / 1000 });
     await venc.flush();
-    await aenc.flush();
+    if (audio) await aenc.flush();
     if (encodeError) throw encodeError;
     muxer.finalize();
     return {
       buffer: target.buffer,
       mimeType: "video/mp4",
       videoCodec: video.label,
-      audioCodec: audio.label,
+      audioCodec: pre ? "AAC（互換モード）" : audio!.label,
       durationSec: total / fps,
       elapsedSec: (performance.now() - t0) / 1000,
     };

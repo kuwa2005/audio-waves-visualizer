@@ -6,7 +6,7 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "build:wasm": "wasm-pack build crates/awv-core --target web --release --out-dir ../../src/wasm/pkg --out-name awv_core",
+    "build:wasm": "node scripts/copy-ffmpeg.mjs && wasm-pack build crates/awv-core --target web --release --out-dir ../../src/wasm/pkg --out-name awv_core",
     "dev": "npm run build:wasm && vite",
     "build": "npm run build:wasm && tsc --noEmit && vite build",
     "preview": "vite preview",
@@ -15,6 +15,9 @@
     "test:rust": "cargo test --manifest-path crates/awv-core/Cargo.toml"
   },
   "dependencies": {
+    "@ffmpeg/core": "^0.12.10",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
     "mp4-muxer": "^5.2.2",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

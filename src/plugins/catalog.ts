@@ -154,6 +154,17 @@ export const turntableMeta: PluginMeta = {
       ],
     },
     { key: "rpm", label: "回転数", type: "select", default: "33", options: [{ value: "33", label: "33⅓ 回転" }, { value: "45", label: "45 回転" }] },
+    { key: "spinScale", label: "回転速度（倍率）", type: "number", min: 0.1, max: 1, step: 0.05, default: 1, unit: "×" },
+    {
+      key: "picture",
+      label: "画像の表示",
+      type: "select",
+      default: "label",
+      options: [
+        { value: "label", label: "中央のラベルだけ" },
+        { value: "full", label: "盤面全体（ピクチャーレコード）" },
+      ],
+    },
     { key: "led", label: "ランプの色", type: "color", default: "#4cc3ff" },
     { key: "vibration", label: "低音での振動", type: "number", min: 0, max: 1, step: 0.05, default: 0.4 },
   ],

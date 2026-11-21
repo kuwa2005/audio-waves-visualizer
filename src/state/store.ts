@@ -25,7 +25,7 @@ export type MediaFile = { name: string; size: number };
 
 export type ExportState =
   | { state: "idle" }
-  | { state: "running"; progress: ExportProgress | null }
+  | { state: "running"; progress: ExportProgress | null; note?: string }
   | { state: "done"; url: string; fileName: string; size: number; videoCodec: string; audioCodec: string; durationSec: number; elapsedSec: number }
   | { state: "error"; message: string; cancelled: boolean };
 

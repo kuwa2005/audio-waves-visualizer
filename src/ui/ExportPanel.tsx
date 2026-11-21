@@ -198,15 +198,13 @@ export function ExportPanel() {
         </p>
       )}
       {codecs && !("error" in codecs) && (
-        <div className="space-y-2 text-xs" data-testid="codec-info">
+        <div className="space-y-1 text-xs" data-testid="codec-info">
           <p className="text-ink-muted">
-            形式: MP4（映像 {codecs.video} / 音声 {codecs.audio}）
+            形式: MP4（映像 {codecs.video} / 音声 AAC{codecs.audio !== "AAC" ? "（互換モード）" : ""}）
           </p>
           {codecs.audio !== "AAC" && (
-            <p role="alert" data-testid="opus-warning" className="rounded-lg border border-warn/50 bg-warn/10 px-3 py-2 leading-5 text-warn">
-              このブラウザでは AAC 音声を作れないため、音声は Opus になります。Windows 標準の「メディア プレーヤー」や
-              macOS の QuickTime では<strong>音が出ません</strong>（VLC・ブラウザ・YouTube などでは再生できます）。
-              Windows / macOS の Chrome または Edge で書き出すと AAC になります。
+            <p data-testid="aac-compat-note" className="leading-4 text-ink-muted">
+              このブラウザは AAC を直接作れないため、内蔵の変換プログラムで AAC にします（初回のみ約 32MB を読み込み）。どのプレーヤーでも音が出ます。
             </p>
           )}
         </div>
@@ -216,7 +214,7 @@ export function ExportPanel() {
         <button
           data-testid="export-start"
           disabled={!startValid || dur <= 0}
-          onClick={() => startExport({ fps, videoBitrate: Math.round(bitrate), start: r.start, end: r.end, audioFade })}
+          onClick={() => void startExport({ fps, videoBitrate: Math.round(bitrate), start: r.start, end: r.end, audioFade })}
           className="accent-gradient w-full rounded-xl py-2.5 text-sm font-semibold text-white shadow-lg disabled:opacity-40"
         >
           MP4 を書き出す
@@ -225,6 +223,7 @@ export function ExportPanel() {
 
       {running && (
         <div className="space-y-2" data-testid="export-progress">
+          {ex.note && <p className="text-xs text-ink-muted">{ex.note}</p>}
           {(() => {
             const p = ex.progress;
             const ratio = p ? p.frame / Math.max(1, p.totalFrames) : 0;
@@ -255,6 +254,11 @@ export function ExportPanel() {
           <p className="text-xs text-ink-muted">
             {mb(ex.size)} ・ {fmt(ex.durationSec)} ・ 映像 {ex.videoCodec} / 音声 {ex.audioCodec} ・ 処理 {ex.elapsedSec.toFixed(1)} 秒
           </p>
+          {ex.audioCodec === "Opus" && (
+            <p role="alert" data-testid="opus-warning" className="rounded-lg border border-warn/50 bg-warn/10 px-2 py-1.5 text-xs leading-5 text-warn">
+              音声を AAC に変換できなかったため Opus になりました。Windows の Media Player（Classic 含む）や QuickTime では音が出ません（VLC・ブラウザ・YouTube では再生できます）。
+            </p>
+          )}
           <a href={ex.url} download={ex.fileName} data-testid="export-download" className="accent-gradient block rounded-lg py-2 text-center font-semibold text-white">
             ダウンロード
           </a>

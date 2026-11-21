@@ -57,8 +57,7 @@ for (const [aspect, w, h] of [
     await page.screenshot({ path: test.info().outputPath("export-panel.png") });
     // 使われるコーデックが事前に表示され、AAC 以外なら警告が出る
     await expect(page.getByTestId("codec-info")).toBeVisible();
-    const info = await page.getByTestId("codec-info").innerText();
-    if (!info.includes("音声 AAC")) await expect(page.getByTestId("opus-warning")).toBeVisible();
+    await expect(page.getByTestId("codec-info")).toContainText("音声 AAC");
     await page.getByTestId("export-start").click();
 
     await expect(page.getByTestId("export-done")).toBeVisible({ timeout: 200_000 });
@@ -76,6 +75,8 @@ for (const [aspect, w, h] of [
     console.log(`[${aspect}] video=${v?.codec_name} ${v?.width}x${v?.height} frames=${v?.nb_frames} audio=${a?.codec_name} duration=${probe.format.duration}`);
     expect(v).toBeTruthy();
     expect(a).toBeTruthy();
+    // どの環境でも AAC（ブラウザが作れなければ ffmpeg.wasm の互換モード）
+    expect(a!.codec_name).toBe("aac");
     expect(v!.width).toBe(w);
     expect(v!.height).toBe(h);
     expect(Number(v!.nb_frames)).toBe(150);

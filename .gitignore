@@ -11,3 +11,4 @@ deploy.env
 test-results/
 playwright-report/
 
+public/ffmpeg/

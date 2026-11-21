@@ -2,7 +2,9 @@ import { AudioEngine } from "../audio/AudioEngine";
 import { RenderHost } from "../engine/RenderHost";
 import type { FromWorker } from "../engine/protocol";
 import { guessAspect } from "../engine/scene";
-import type { ExportSettings } from "../engine/exportTypes";
+import { applyAudioFade, type ExportSettings } from "../engine/exportTypes";
+import { pickAudio } from "../engine/codecs";
+import { encodeAacWithFfmpeg, type PreEncodedAac } from "../audio/aacFallback";
 import { useStore } from "../state/store";
 
 /**
@@ -35,9 +37,11 @@ function onWorkerMessage(msg: FromWorker): void {
       st.patch({ error: msg.message, loading: null });
       if (st.exportState.state === "running") st.patch({ exportState: { state: "error", message: msg.message, cancelled: false } });
       break;
-    case "exportProgress":
-      st.patch({ exportState: { state: "running", progress: msg.progress } });
+    case "exportProgress": {
+      const prev = st.exportState;
+      st.patch({ exportState: { state: "running", progress: msg.progress, note: prev.state === "running" ? prev.note : undefined } });
       break;
+    }
     case "exportDone": {
       const r = msg.result;
       const prev = st.exportState;
@@ -210,8 +214,17 @@ export function currentTime(): number {
   return audio.currentTime();
 }
 
+/** ブラウザが AAC を作れるか（作れなければ ffmpeg.wasm で AAC を作る） */
+export async function nativeAacAvailable(sampleRate = 48000, channels = 2): Promise<boolean> {
+  try {
+    return (await pickAudio(sampleRate, channels)).label === "AAC";
+  } catch {
+    return false;
+  }
+}
+
 /** MP4 書き出しを開始する（再生は一時停止する） */
-export function startExport(settings: ExportSettings): void {
+export async function startExport(settings: ExportSettings): Promise<void> {
   const st = useStore.getState();
   if (!st.track || st.exportState.state === "running") return;
   if (audio.isPlaying) {
@@ -223,10 +236,27 @@ export function startExport(settings: ExportSettings): void {
   const src = audio.channelsCopy();
   if (!src) return;
   st.patch({ exportState: { state: "running", progress: null } });
-  host?.send(
-    { type: "export", settings, channels: src.channels, sampleRate: src.sampleRate },
-    src.channels.map((c) => c.buffer),
-  );
+
+  // AAC を作れない環境では、ffmpeg.wasm で範囲の音声を AAC にしてから渡す
+  let aac: PreEncodedAac | undefined;
+  if (!(await nativeAacAvailable(src.sampleRate, src.channels.length))) {
+    try {
+      useStore.getState().patch({ exportState: { state: "running", progress: null, note: "音声を AAC に変換中…（初回は変換プログラム約 32MB を読み込みます）" } });
+      const from = Math.floor(settings.start * src.sampleRate);
+      const to = Math.floor(settings.end * src.sampleRate);
+      const slices = src.channels.map((c) => c.slice(from, to));
+      if (settings.audioFade > 0) slices.forEach((c) => applyAudioFade(c, src.sampleRate, settings.audioFade));
+      aac = await encodeAacWithFfmpeg(slices, src.sampleRate);
+      useStore.getState().patch({ exportState: { state: "running", progress: null } });
+    } catch (e) {
+      // 変換できなければ Opus で続行（完了時に注意を表示）
+      console.warn("AAC fallback failed", e);
+      useStore.getState().patch({ exportState: { state: "running", progress: null, note: "AAC に変換できなかったため Opus で書き出します" } });
+    }
+  }
+  const transfer: Transferable[] = src.channels.map((c) => c.buffer);
+  if (aac) transfer.push(aac.data.buffer, aac.sizes.buffer);
+  host?.send({ type: "export", settings, channels: src.channels, sampleRate: src.sampleRate, aac }, transfer);
 }
 
 export function cancelExport(): void {

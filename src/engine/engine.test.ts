@@ -196,3 +196,34 @@ describe("program range and fades", () => {
     expect(ch[99]).toBe(0);
   });
 });
+
+import { audioSpecificConfig, buildWav, parseAdts } from "../audio/aacFallback";
+
+describe("AAC fallback helpers", () => {
+  it("builds AudioSpecificConfig for AAC-LC 48kHz stereo", () => {
+    expect(Array.from(audioSpecificConfig(2, 48000, 2))).toEqual([0x11, 0x90]);
+    expect(Array.from(audioSpecificConfig(2, 44100, 2))).toEqual([0x12, 0x10]);
+  });
+  it("splits an ADTS stream into raw frames", () => {
+    const frame = (payload: number[]) => {
+      const len = 7 + payload.length;
+      // AAC-LC(profile 1), 48kHz(idx 3), 2ch, protection absent
+      return [0xff, 0xf1, (1 << 6) | (3 << 2) | 0, (2 << 6) | ((len >> 11) & 3), (len >> 3) & 0xff, ((len & 7) << 5) | 0x1f, 0xfc, ...payload];
+    };
+    const buf = Uint8Array.from([...frame([1, 2, 3]), ...frame([4, 5])]);
+    const p = parseAdts(buf);
+    expect(p.frames.map((f) => Array.from(f))).toEqual([[1, 2, 3], [4, 5]]);
+    expect(p.sampleRate).toBe(48000);
+    expect(p.channels).toBe(2);
+    expect(p.objectType).toBe(2);
+  });
+  it("writes a 16-bit PCM WAV header", () => {
+    const w = buildWav([Float32Array.from([0, 1]), Float32Array.from([-1, 0.5])], 48000);
+    expect(w.length).toBe(44 + 2 * 2 * 2);
+    const v = new DataView(w.buffer);
+    expect(String.fromCharCode(...w.subarray(0, 4))).toBe("RIFF");
+    expect(v.getUint16(22, true)).toBe(2);
+    expect(v.getUint32(24, true)).toBe(48000);
+    expect(v.getInt16(46, true)).toBe(-32768);
+  });
+});

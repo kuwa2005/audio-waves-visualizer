@@ -206,6 +206,7 @@ async function startExport(msg: Extract<ToWorker, { type: "export" }>): Promise<
       features: trackFeatures,
       env,
       audio: { channels: msg.channels, sampleRate: msg.sampleRate },
+      aac: msg.aac,
       onProgress: (progress) => post({ type: "exportProgress", progress }),
       isCancelled: () => cancelRequested,
     });
