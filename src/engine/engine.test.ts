@@ -149,3 +149,22 @@ describe("turntable geometry", () => {
     }
   });
 });
+
+import { bandLevel, ISO_31 } from "../plugins/spectrumClassic";
+
+describe("graphic EQ band level", () => {
+  it("puts a pure tone in its own 1/3-octave band", () => {
+    const sr = 48000;
+    const spec = new Float32Array(1025);
+    const k = Math.round(1000 / (sr / 2048)); // 1kHz 付近の bin
+    spec[k] = 0.5;
+    const levels = ISO_31.map((fc) => bandLevel(spec, sr, fc, 1 / 3));
+    const best = levels.indexOf(Math.max(...levels));
+    expect(ISO_31[best]).toBe(1000);
+    expect(levels[ISO_31.indexOf(100)]).toBe(0);
+  });
+  it("lowest bands still read a bin even when narrower than the bin width", () => {
+    const spec = new Float32Array(1025).fill(0.1);
+    expect(bandLevel(spec, 48000, 20, 1 / 3)).toBeGreaterThan(0);
+  });
+});

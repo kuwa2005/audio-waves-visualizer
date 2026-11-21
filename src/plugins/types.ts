@@ -13,6 +13,8 @@ export type PluginMeta = {
   id: string;
   name: string;
   description: string;
+  /** UI での分類（未指定はスペクトラム） */
+  category?: "spectrum" | "ambient";
   params: ParamDef[];
   /** 変形前の描画範囲（出力ピクセル座標）。移動・拡大の基準点と、マウスの当たり判定に使う */
   bounds(params: ParamValues, W: number, H: number): Rect;
@@ -34,6 +36,8 @@ export type FrameContext = {
   spectrumAt(t: number): Float32Array;
   /** 曲の長さ（秒）。曲が無ければ 0 */
   duration: number;
+  /** サンプリングレート（Hz）。スペクトルの bin k の周波数 = k × sampleRate / ((spectrum.length − 1) × 2) */
+  sampleRate: number;
   /** 現在の背景画像（レコードのラベル等に使える）と、そのキャッシュ用 ID */
   artwork?: ImageBitmap;
   artworkId?: string;

@@ -19,12 +19,16 @@ test("全ビジュアライザー・全エフェクトがエラーなく描画�
   await page.getByTestId("play-button").click();
   await page.getByTestId("step-visual").click();
 
-  // 既定のネオンバーを外す
+  // 既定のネオンバーを外す（ギャラリーのカードをもう一度押すと外れる）
   const layerList = page.getByTestId("layer-list");
-  await layerList.getByRole("button", { name: "削除" }).first().click();
+  await expect(page.getByTestId("add-neon-bars")).toHaveAttribute("aria-pressed", "true");
+  await page.getByTestId("add-neon-bars").click();
+  await expect(layerList.locator("li")).toHaveCount(0);
 
   for (const meta of CATALOG) {
-    await page.getByTestId(`add-${meta.id}`).click();
+    const card = page.getByTestId(`add-${meta.id}`);
+    await card.click();
+    await expect(card).toHaveAttribute("aria-pressed", "true");
     await page.waitForTimeout(1800);
     await page.getByTestId("stage").screenshot({ path: test.info().outputPath(`vis-${meta.id}.png`) });
     console.log(meta.id, (await page.getByTestId("perf-hud").innerText()).replace(/\n/g, " | "));
@@ -36,7 +40,10 @@ test("全ビジュアライザー・全エフェクトがエラーなく描画�
         await page.getByTestId("stage").screenshot({ path: test.info().outputPath(`vis-turntable-${finish}.png`) });
       }
     }
-    await layerList.getByRole("button", { name: "削除" }).first().click();
+    // その場でもう一度押して外す
+    await card.click();
+    await expect(card).toHaveAttribute("aria-pressed", "false");
+    await expect(layerList.locator("li")).toHaveCount(0);
   }
 
   // ワープトンネル＋全エフェクト

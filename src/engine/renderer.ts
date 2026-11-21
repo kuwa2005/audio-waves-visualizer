@@ -11,6 +11,8 @@ export type RenderEnv = {
   spectrumAt(t: number): Float32Array;
   /** 曲の長さ（秒） */
   duration(): number;
+  /** サンプリングレート（Hz） */
+  sampleRate(): number;
 };
 
 /**
@@ -107,6 +109,7 @@ export class SceneRenderer {
       sprites: this.sprites,
       spectrumAt: env.spectrumAt,
       duration: env.duration(),
+      sampleRate: env.sampleRate(),
       artwork,
       artworkId: imgId,
     };

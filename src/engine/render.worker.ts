@@ -40,6 +40,7 @@ let idleAnalyzer: Analyzer | null = null;
 // 読み込んだ曲
 let track: Track | null = null;
 let trackData: TrackData | null = null;
+let trackSampleRate = IDLE_SAMPLE_RATE;
 
 let lastFrameTs = 0;
 let lastPerfPost = 0;
@@ -95,6 +96,9 @@ const env: RenderEnv = {
   },
   duration(): number {
     return track ? track.duration() : 0;
+  },
+  sampleRate(): number {
+    return track ? trackSampleRate : IDLE_SAMPLE_RATE;
   },
 };
 
@@ -174,6 +178,7 @@ function loadTrack(pcm: Float32Array, sampleRate: number): void {
   track = null;
   trackData = null;
   const tr = new Track(sampleRate, pcm.length);
+  trackSampleRate = sampleRate;
   f32(tr.pcm_ptr(), pcm.length).set(pcm);
   tr.analyze();
   track = tr;
