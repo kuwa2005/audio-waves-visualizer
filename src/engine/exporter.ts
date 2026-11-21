@@ -7,7 +7,7 @@
 import { ArrayBufferTarget, Muxer } from "mp4-muxer";
 import type { AudioFeatures } from "./features";
 import { frameCount, type ExportProgress, type ExportResult, type ExportSettings } from "./exportTypes";
-import { SceneRenderer } from "./renderer";
+import { SceneRenderer, type RenderEnv } from "./renderer";
 import { OUTPUT_SIZE, type Scene } from "./scene";
 import type { SpriteCache } from "../plugins/types";
 
@@ -21,6 +21,7 @@ export type ExportJob = {
   settings: ExportSettings;
   /** 時刻 t の特徴量を out に書き込む */
   features(t: number): AudioFeatures;
+  env: RenderEnv;
   audio: { channels: Float32Array[]; sampleRate: number };
   onProgress(p: ExportProgress): void;
   isCancelled(): boolean;
@@ -172,7 +173,7 @@ export async function runExport(job: ExportJob): Promise<ExportResult> {
       if (job.isCancelled()) throw new ExportCancelled();
       if (encodeError) throw encodeError;
       const t = settings.start + i / fps;
-      renderer.render(ctx, scene, job.images, job.features(t), t, i === 0 ? 0 : 1 / fps);
+      renderer.render(ctx, scene, job.images, job.features(t), t, i === 0 ? 0 : 1 / fps, job.env);
       const vf = new VideoFrame(canvas, { timestamp: Math.round(i * frameUs), duration: Math.round(frameUs) });
       venc.encode(vf, { keyFrame: i % keyEvery === 0 });
       vf.close();

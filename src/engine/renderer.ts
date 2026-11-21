@@ -1,22 +1,33 @@
 import { BackgroundRenderer } from "./background";
 import type { AudioFeatures } from "./features";
 import { OUTPUT_SIZE, pickBackgroundImage, type Scene } from "./scene";
+import { EFFECT_REGISTRY } from "../plugins/effects";
 import { REGISTRY } from "../plugins/registry";
-import type { FrameContext, SpriteCache, VisualizerInstance } from "../plugins/types";
+import type { EffectContext, EffectInstance, FrameContext, SpriteCache, VisualizerInstance } from "../plugins/types";
+
+/** 描画に必要な外部機能（プレビューと書き出しで同じものを渡す） */
+export type RenderEnv = {
+  /** 任意の時刻のスペクトル */
+  spectrumAt(t: number): Float32Array;
+};
 
 /**
- * シーン全体の 1 フレーム描画。プレビューと書き出しで同じクラスを使う（別インスタンス）。
- * 内部状態（平滑化・残像）はインスタンスごとに独立しているので、書き出し中もプレビューの状態を汚さない。
+ * シーン全体の 1 フレーム描画: 背景 → ビジュアライザー（後ろから順） → エフェクト（順に適用）。
+ * プレビューと書き出しで同じクラスを使う（別インスタンス）。内部状態はインスタンスごとに独立。
  */
 export class SceneRenderer {
   private readonly background = new BackgroundRenderer();
   private readonly instances = new Map<string, { pluginId: string; inst: VisualizerInstance }>();
+  private readonly effects = new Map<string, { pluginId: string; inst: EffectInstance }>();
+  private readonly scratchCanvases: OffscreenCanvas[] = [];
+  private readonly smallCanvases = new Map<string, OffscreenCanvas>();
 
   constructor(private readonly sprites: SpriteCache) {}
 
   /** シーク時などに平滑化・残像をリセット */
   reset(): void {
     for (const { inst } of this.instances.values()) inst.reset?.();
+    for (const { inst } of this.effects.values()) inst.reset?.();
   }
 
   invalidateBackground(): void {
@@ -25,8 +36,9 @@ export class SceneRenderer {
 
   /** シーンから消えたレイヤーのインスタンスを破棄 */
   prune(scene: Scene): void {
-    const ids = new Set(scene.visualizers.map((v) => v.id));
+    const ids = new Set([...scene.visualizers.map((v) => v.id), ...scene.effects.map((e) => e.id)]);
     for (const id of this.instances.keys()) if (!ids.has(id)) this.instances.delete(id);
+    for (const id of this.effects.keys()) if (!ids.has(id)) this.effects.delete(id);
   }
 
   private instanceFor(layerId: string, pluginId: string): VisualizerInstance | null {
@@ -39,6 +51,37 @@ export class SceneRenderer {
     return inst;
   }
 
+  private effectFor(layerId: string, pluginId: string): EffectInstance | null {
+    const cur = this.effects.get(layerId);
+    if (cur && cur.pluginId === pluginId) return cur.inst;
+    const plugin = EFFECT_REGISTRY[pluginId];
+    if (!plugin) return null;
+    const inst = plugin.create();
+    this.effects.set(layerId, { pluginId, inst });
+    return inst;
+  }
+
+  private scratch(i: number, W: number, H: number): OffscreenCanvas {
+    let c = this.scratchCanvases[i];
+    if (!c || c.width !== W || c.height !== H) {
+      c = new OffscreenCanvas(W, H);
+      this.scratchCanvases[i] = c;
+    }
+    return c;
+  }
+
+  private small(i: number, div: number, W: number, H: number): OffscreenCanvas {
+    const w = Math.max(1, Math.ceil(W / div));
+    const h = Math.max(1, Math.ceil(H / div));
+    const key = `${i}:${div}`;
+    let c = this.smallCanvases.get(key);
+    if (!c || c.width !== w || c.height !== h) {
+      c = new OffscreenCanvas(w, h);
+      this.smallCanvases.set(key, c);
+    }
+    return c;
+  }
+
   render(
     ctx: OffscreenCanvasRenderingContext2D,
     scene: Scene,
@@ -46,12 +89,13 @@ export class SceneRenderer {
     features: AudioFeatures,
     t: number,
     dt: number,
+    env: RenderEnv,
   ): void {
     const { width: W, height: H } = OUTPUT_SIZE[scene.aspect];
     const imgId = pickBackgroundImage(scene.background, scene.aspect);
     this.background.render(ctx, W, H, scene.background, imgId ? images.get(imgId) : undefined, imgId, features);
 
-    const fc: FrameContext = { width: W, height: H, t, dt, features, sprites: this.sprites };
+    const fc: FrameContext = { width: W, height: H, t, dt, features, sprites: this.sprites, spectrumAt: env.spectrumAt };
     for (const layer of scene.visualizers) {
       if (!layer.enabled || layer.opacity <= 0) continue;
       const inst = this.instanceFor(layer.id, layer.pluginId);
@@ -71,6 +115,23 @@ export class SceneRenderer {
         ctx.translate(-cx, -cy);
       }
       inst.render(ctx, fc, layer.params);
+      ctx.restore();
+    }
+
+    if (scene.effects.length === 0) return;
+    const fx: EffectContext = {
+      ...fc,
+      scratch: (i) => this.scratch(i, W, H),
+      small: (i, div) => this.small(i, div, W, H),
+    };
+    for (const layer of scene.effects) {
+      if (!layer.enabled) continue;
+      const inst = this.effectFor(layer.id, layer.pluginId);
+      if (!inst) continue;
+      ctx.save();
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = "source-over";
+      inst.apply(ctx, fx, layer.params);
       ctx.restore();
     }
   }

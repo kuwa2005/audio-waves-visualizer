@@ -42,6 +42,15 @@ export type VisualizerLayer = {
   params: ParamValues;
 };
 
+/** 画面全体にかけるエフェクト（配列の順に適用） */
+export type EffectLayer = {
+  id: string;
+  kind: "effect";
+  pluginId: string;
+  enabled: boolean;
+  params: ParamValues;
+};
+
 /** 矩形（出力ピクセル座標） */
 export type Rect = { x: number; y: number; w: number; h: number };
 
@@ -54,13 +63,15 @@ export function transformRect(b: Rect, tr: LayerTransform, W: number, H: number)
   return { x: cx - w / 2, y: cy - h / 2, w, h };
 }
 
-export type Layer = BackgroundLayer | VisualizerLayer;
+export type Layer = BackgroundLayer | VisualizerLayer | EffectLayer;
 
 export type Scene = {
   aspect: Aspect;
   background: BackgroundLayer;
   /** 配列の後ろほど手前に描く */
   visualizers: VisualizerLayer[];
+  /** ビジュアライザーを描いた後にかける後処理 */
+  effects: EffectLayer[];
 };
 
 export function defaultScene(): Scene {
@@ -68,6 +79,7 @@ export function defaultScene(): Scene {
     aspect: "16:9",
     background: { id: "background", kind: "background", images: {}, dim: 0.35, zoomPunch: 0.4 },
     visualizers: [],
+    effects: [],
   };
 }
 

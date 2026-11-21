@@ -12,7 +12,8 @@ import { ExportCancelled, runExport } from "./exporter";
 import { computeFeatures, emptyFeatures, type AudioFeatures, type TrackData } from "./features";
 import { PerfStats } from "./perfStats";
 import type { FromWorker, ToWorker } from "./protocol";
-import { SceneRenderer } from "./renderer";
+import { SceneRenderer, type RenderEnv } from "./renderer";
+import { setWasmMemory } from "./wasmEnv";
 import { OUTPUT_SIZE, type Scene } from "./scene";
 import { createSpriteCache } from "./sprites";
 import type { SpriteCache } from "../plugins/types";
@@ -72,12 +73,27 @@ function refreshTrackViews(): void {
   };
 }
 
+/** 現在フレームのスペクトル（WASM のバッファは履歴取得で上書きされるのでコピーして持つ） */
+let specBuf = new Float32Array(1025);
+
 /** 曲の時刻 t の特徴量（プレビュー・書き出し共通、決定的） */
 function trackFeatures(t: number): AudioFeatures {
   track!.spectrum_at(t);
   if (trackData!.rms.buffer !== memory!.buffer) refreshTrackViews();
-  return computeFeatures(trackData!, t, f32(track!.magnitudes_ptr(), track!.bin_count()), features);
+  const n = track!.bin_count();
+  if (specBuf.length !== n) specBuf = new Float32Array(n);
+  specBuf.set(f32(track!.magnitudes_ptr(), n));
+  return computeFeatures(trackData!, t, specBuf, features);
 }
+
+/** 描画プラグインに渡す環境（任意時刻のスペクトル） */
+const env: RenderEnv = {
+  spectrumAt(t: number): Float32Array {
+    if (!track) return features.spectrum;
+    track.spectrum_at(t);
+    return f32(track.magnitudes_ptr(), track.bin_count());
+  },
+};
 
 function idleSignal(buf: Float32Array, t: number): void {
   const beat = (t * 2) % 1;
@@ -129,7 +145,7 @@ function frame(ts: number): void {
   }
   lastT = t;
   const f = track ? trackFeatures(t) : idleAnalyzer ? idleFeatures(t) : features;
-  preview.render(ctx, scene, images, f, t, dt);
+  preview.render(ctx, scene, images, f, t, dt, env);
 
   perf.push(performance.now() - t0, interval);
   if (ts - lastPerfPost > 500) {
@@ -180,6 +196,7 @@ async function startExport(msg: Extract<ToWorker, { type: "export" }>): Promise<
       sprites,
       settings: msg.settings,
       features: trackFeatures,
+      env,
       audio: { channels: msg.channels, sampleRate: msg.sampleRate },
       onProgress: (progress) => post({ type: "exportProgress", progress }),
       isCancelled: () => cancelRequested,
@@ -213,6 +230,7 @@ self.onmessage = async (e: MessageEvent<ToWorker>) => {
         try {
           const out = await init();
           memory = out.memory;
+          setWasmMemory(out.memory);
           idleAnalyzer = new Analyzer(IDLE_FFT, IDLE_SAMPLE_RATE);
           features = emptyFeatures(idleAnalyzer.bin_count());
           wasm = true;

@@ -1,4 +1,5 @@
 import { findMeta } from "../plugins/catalog";
+import { findEffectMeta } from "../plugins/effectCatalog";
 import type { ParamDef } from "../plugins/types";
 import { IDENTITY_TRANSFORM, SCALE_MAX, SCALE_MIN, type ParamValue } from "../engine/scene";
 import { useStore } from "../state/store";
@@ -64,7 +65,25 @@ export function Inspector() {
   const layer = useStore((s) => s.scene.visualizers.find((v) => v.id === selectedId));
   const setParam = useStore((s) => s.setParam);
   const setTransform = useStore((s) => s.setTransform);
+  const effect = useStore((s) => s.scene.effects.find((e) => e.id === selectedId));
+  const setEffectParam = useStore((s) => s.setEffectParam);
   const meta = layer ? findMeta(layer.pluginId) : undefined;
+
+  if (effect) {
+    const em = findEffectMeta(effect.pluginId);
+    if (!em) return null;
+    return (
+      <div className="space-y-4" data-testid="inspector">
+        <div>
+          <h3 className="text-[15px] font-semibold text-ink">✦ {em.name}</h3>
+          <p className="text-xs text-ink-muted">{em.description}</p>
+        </div>
+        {em.params.map((def) => (
+          <Field key={def.key} def={def} value={effect.params[def.key]} onChange={(v) => setEffectParam(effect.id, def.key, v)} />
+        ))}
+      </div>
+    );
+  }
 
   if (!layer || !meta) {
     return <p className="text-sm text-ink-muted">「ビジュアル」でレイヤーを選ぶと、ここで調整できます。</p>;

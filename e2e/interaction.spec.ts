@@ -38,5 +38,15 @@ test("デモ素材が自動で読み込まれ、レイヤーをドラッグ・�
   await page.mouse.dblclick(after.x + after.width / 2, after.y + after.height / 2);
   await expect(sel).toContainText("100%");
 
+  // プレビューの外（インスペクター）をクリックするとガイドが消え、選択は残る
+  await page.getByTestId("transform-controls").click();
+  await expect(sel).toBeHidden();
+  await expect(page.getByTestId("transform-controls")).toBeVisible();
+  // レイヤーをクリックすると再表示、何も無い所（画面上端）をクリックすると消える
+  await page.mouse.click(sx, sy);
+  await expect(sel).toBeVisible();
+  await page.mouse.click(box.x + box.width * 0.5, box.y + 4);
+  await expect(sel).toBeHidden();
+
   expect(errors).toEqual([]);
 });

@@ -29,6 +29,8 @@ export function Stage() {
   const drag = useRef<{ id: string; px: number; py: number; start: LayerTransform } | null>(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
   const [hover, setHover] = useState<string | null>(null);
+  /** 選択枠（ガイド）はプレビューがフォーカスを持っている間だけ表示する */
+  const [focused, setFocused] = useState(false);
   const aspect = useStore((s) => s.scene.aspect);
   const selectedId = useStore((s) => s.selectedLayerId);
   const selected = useStore((s) => s.scene.visualizers.find((v) => v.id === s.selectedLayerId));
@@ -63,6 +65,20 @@ export function Stage() {
     return { px: ((clientX - r.left) / r.width) * W, py: ((clientY - r.top) / r.height) * H };
   };
 
+  // プレビューの外をクリックしたらガイドを消す（レイヤーの選択自体は残し、インスペクターで調整できるようにする）
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => {
+      if (!boxRef.current?.contains(e.target as Node)) setFocused(false);
+    };
+    const onBlur = () => setFocused(false);
+    document.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      document.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, []);
+
   // ホイールで拡大縮小（ページのスクロールを止めるため passive: false で登録）
   useEffect(() => {
     const el = boxRef.current;
@@ -75,6 +91,7 @@ export function Stage() {
       if (!layer) return;
       e.preventDefault();
       if (st.selectedLayerId !== layer.id) st.selectLayer(layer.id);
+      setFocused(true);
       st.setTransform(layer.id, { scale: layer.transform.scale * Math.exp(-e.deltaY * 0.0015) });
     };
     el.addEventListener("wheel", onWheel, { passive: false });
@@ -99,6 +116,8 @@ export function Stage() {
           const { px, py } = toOutput(e.clientX, e.clientY);
           const id = hitTest(px, py);
           const st = useStore.getState();
+          // 枠の外（レイヤーの無い所）をクリックしたら選択とガイドを解除
+          setFocused(!!id);
           st.selectLayer(id);
           if (!id) return;
           const layer = st.scene.visualizers.find((v) => v.id === id)!;
@@ -124,7 +143,7 @@ export function Stage() {
         }}
       >
         <canvas ref={canvasRef} data-testid="stage-canvas" className="absolute inset-0 h-full w-full rounded-xl bg-black shadow-2xl shadow-black/50" />
-        {selRect && selectedId && (
+        {focused && selRect && selectedId && (
           <div
             data-testid="selection-box"
             className="pointer-events-none absolute rounded-md border-2 border-dashed border-accent-to/90 shadow-[0_0_0_1px_rgba(0,0,0,0.4)]"

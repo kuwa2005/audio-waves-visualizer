@@ -30,6 +30,28 @@ export type FrameContext = {
   features: AudioFeatures;
   /** 共有の描画素材（発光スプライトなど） */
   sprites: SpriteCache;
+  /** 任意の時刻のスペクトル（履歴表示用）。返り値は次の呼び出しで上書きされるので、必要ならコピーする */
+  spectrumAt(t: number): Float32Array;
+};
+
+/** エフェクト（画面全体への後処理）に渡す作業用キャンバス */
+export type EffectContext = FrameContext & {
+  /** 出力と同サイズの作業用キャンバス（index ごとに使い回し） */
+  scratch(index: number): OffscreenCanvas;
+  /** 縮小サイズの作業用キャンバス（ブラー用。divisor 分の 1） */
+  small(index: number, divisor: number): OffscreenCanvas;
+};
+
+export interface EffectInstance {
+  /** ctx.canvas（ここまでの描画結果）を加工する */
+  apply(ctx: Ctx2D, frame: EffectContext, params: ParamValues): void;
+  reset?(): void;
+}
+
+export type EffectMeta = Omit<PluginMeta, "bounds">;
+
+export type EffectPlugin = EffectMeta & {
+  create(): EffectInstance;
 };
 
 export type SpriteCache = {
@@ -49,7 +71,7 @@ export type VisualizerPlugin = PluginMeta & {
   create(): VisualizerInstance;
 };
 
-export function defaultParams(meta: PluginMeta): ParamValues {
+export function defaultParams(meta: { params: ParamDef[] }): ParamValues {
   const out: ParamValues = {};
   for (const p of meta.params) out[p.key] = p.default;
   return out;

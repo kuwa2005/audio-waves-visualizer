@@ -4,6 +4,7 @@
 //! 毎フレームの配列コピーや確保をしない。
 
 pub mod features;
+pub mod particles;
 pub mod track;
 pub mod wav;
 
