@@ -227,11 +227,32 @@ export const graphicEqMeta: PluginMeta = {
 export const spaceMeta: PluginMeta = {
   id: "space",
   name: "宇宙空間",
-  description: "星々と星雲。星はまたたき、低音で星雲が脈打ち、ときどき流れ星",
+  description: "宇宙船で星の海を進むように、奥から星が光の筋になって流れてくる。ビートでワープ",
+  category: "ambient",
+  params: [
+    { key: "darken", label: "背景を暗くする", type: "number", min: 0, max: 1, step: 0.05, default: 0.75 },
+    { key: "stars", label: "星の数", type: "number", min: 200, max: 3000, step: 50, default: 1400 },
+    { key: "speed", label: "進む速さ", type: "number", min: 0.1, max: 4, step: 0.05, default: 1 },
+    { key: "warp", label: "ビートでワープ", type: "number", min: 0, max: 1, step: 0.05, default: 0.6 },
+    { key: "streak", label: "光の筋の長さ", type: "number", min: 0, max: 1, step: 0.05, default: 0.35 },
+    { key: "cx", label: "進む方向（横）", type: "number", min: 0.2, max: 0.8, step: 0.01, default: 0.5 },
+    { key: "cy", label: "進む方向（縦）", type: "number", min: 0.2, max: 0.8, step: 0.01, default: 0.5 },
+    { key: "nebula", label: "遠くの星雲", type: "number", min: 0, max: 1, step: 0.05, default: 0.3 },
+    { key: "hueA", label: "星雲の色 1", type: "color", default: "#5b2cff" },
+    { key: "hueB", label: "星雲の色 2", type: "color", default: "#1f8fff" },
+  ],
+  bounds: full,
+};
+
+export const starrySkyMeta: PluginMeta = {
+  id: "starry-sky",
+  name: "星空",
+  description: "またたく星々と星雲の夜空。低音で星雲が脈打ち、ときどき流れ星",
   category: "ambient",
   params: [
     { key: "darken", label: "背景を暗くする", type: "number", min: 0, max: 1, step: 0.05, default: 0.55 },
     { key: "stars", label: "星の数", type: "number", min: 100, max: 2000, step: 50, default: 900 },
+    { key: "starSize", label: "星の大きさ", type: "number", min: 0.3, max: 4, step: 0.05, default: 1, unit: "×" },
     { key: "nebula", label: "星雲の濃さ", type: "number", min: 0, max: 1, step: 0.05, default: 0.4 },
     { key: "hueA", label: "星雲の色 1", type: "color", default: "#7b3cff" },
     { key: "hueB", label: "星雲の色 2", type: "color", default: "#1fa8ff" },
@@ -316,6 +337,7 @@ export const CATALOG: PluginMeta[] = [
   lineScapeMeta,
   turntableMeta,
   spaceMeta,
+  starrySkyMeta,
   sparkleMeta,
   atmosphereMeta,
   rainMeta,

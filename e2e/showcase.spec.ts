@@ -32,6 +32,11 @@ test("全ビジュアライザー・全エフェクトがエラーなく描画�
     await page.waitForTimeout(1800);
     await page.getByTestId("stage").screenshot({ path: test.info().outputPath(`vis-${meta.id}.png`) });
     console.log(meta.id, (await page.getByTestId("perf-hud").innerText()).replace(/\n/g, " | "));
+    if (meta.id === "starry-sky") {
+      await page.getByTestId("inspector").locator("label", { hasText: "星の大きさ" }).locator("input").fill("3");
+      await page.waitForTimeout(500);
+      await page.getByTestId("stage").screenshot({ path: test.info().outputPath("vis-starry-sky-big.png") });
+    }
     if (meta.id === "turntable") {
       // 仕上げの切り替え
       for (const finish of ["walnut", "black"]) {

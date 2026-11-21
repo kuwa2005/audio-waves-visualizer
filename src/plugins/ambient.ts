@@ -1,4 +1,4 @@
-import { atmosphereMeta, rainMeta, snowMeta, sparkleMeta, spaceMeta } from "./catalog";
+import { atmosphereMeta, rainMeta, snowMeta, sparkleMeta, spaceMeta, starrySkyMeta } from "./catalog";
 import { hash01, mulberry32 } from "./rng";
 import { num, str, type VisualizerPlugin } from "./types";
 
@@ -25,20 +25,152 @@ function hexToRgb(hex: string): [number, number, number] {
 
 // ------------------------------------------------------------------ 宇宙空間
 
-const MAX_STARS = 2000;
+const MAX_STARS = 3000;
+/** 星の奥行きの範囲（near で画面の外へ抜ける） */
+const Z_FAR = 1;
+const Z_NEAR = 0.02;
 
+/**
+ * 宇宙空間: 3D 空間の星へ向かって進む（スターフィールド）。
+ * 進んだ距離 = 時刻 × 速さ なので状態を持たず、シーク・書き出しでも同じ映像になる。
+ * ビートでは位置ではなく「光の筋の長さと明るさ」を伸ばしてワープ感を出す（位置が飛ばない）。
+ */
 export const space: VisualizerPlugin = {
   ...spaceMeta,
   create() {
-    const R = table(MAX_STARS, 6, 101);
+    const R = table(MAX_STARS, 4, 101);
+    let nebula: OffscreenCanvas | null = null;
+    let nebKey = "";
+    // 各星の線を明るさの段階ごとにまとめて描く
+    const LEVELS = 5;
+    return {
+      render(ctx, frame, p) {
+        const { width: W, height: H, t, features: f, sprites } = frame;
+        const n = Math.min(MAX_STARS, Math.round(num(p, "stars", 1400)));
+        const speed = num(p, "speed", 1) * 0.12;
+        const warp = num(p, "warp", 0.6);
+        const streak = num(p, "streak", 0.35);
+        const cx = W * num(p, "cx", 0.5);
+        const cy = H * num(p, "cy", 0.5);
+        const focal = Math.max(W, H) * 0.5;
+        const s = H / 1080;
+
+        // 背景を宇宙の暗さに寄せる
+        const darken = num(p, "darken", 0.75);
+        if (darken > 0) {
+          ctx.globalAlpha = darken;
+          ctx.fillStyle = "#010208";
+          ctx.fillRect(0, 0, W, H);
+          ctx.globalAlpha = 1;
+        }
+
+        // 遠くの星雲（ほぼ動かない遠景。ゆっくり回転し、低音でわずかに明るく）
+        const nebAmt = num(p, "nebula", 0.3);
+        const ca = str(p, "hueA", "#5b2cff");
+        const cb = str(p, "hueB", "#1f8fff");
+        if (nebAmt > 0) {
+          const key = `${W}x${H}:${ca}:${cb}`;
+          if (key !== nebKey) {
+            nebKey = key;
+            nebula = new OffscreenCanvas(Math.ceil(W / 4), Math.ceil(H / 4));
+            const g = nebula.getContext("2d")!;
+            g.globalCompositeOperation = "lighter";
+            const rnd = mulberry32(7);
+            const [ar, ag, ab] = hexToRgb(ca);
+            const [br, bg, bb] = hexToRgb(cb);
+            for (let i = 0; i < 18; i++) {
+              const x = (0.1 + rnd() * 0.8) * nebula.width;
+              const y = (0.1 + rnd() * 0.8) * nebula.height;
+              const r = (0.15 + rnd() * 0.3) * Math.max(nebula.width, nebula.height);
+              const m = rnd();
+              const col = `rgba(${Math.round(ar + (br - ar) * m)},${Math.round(ag + (bg - ag) * m)},${Math.round(ab + (bb - ab) * m)},`;
+              const gr = g.createRadialGradient(x, y, 0, x, y, r);
+              gr.addColorStop(0, `${col}${0.18 + rnd() * 0.15})`);
+              gr.addColorStop(0.55, `${col}${0.04 + rnd() * 0.04})`);
+              gr.addColorStop(1, `${col}0)`);
+              g.fillStyle = gr;
+              g.fillRect(0, 0, nebula.width, nebula.height);
+            }
+          }
+          ctx.save();
+          ctx.globalCompositeOperation = "lighter";
+          ctx.globalAlpha = Math.min(1, nebAmt * (0.7 + f.bass * 0.3));
+          ctx.translate(cx, cy);
+          ctx.rotate(t * 0.004);
+          ctx.scale(1.3, 1.3);
+          ctx.drawImage(nebula!, -W / 2, -H / 2, W, H);
+          ctx.restore();
+        }
+
+        // 星（3D → 2D 投影）。筋の長さ = 前の奥行き位置からの移動ぶん
+        const traveled = t * speed;
+        const boost = 1 + warp * (f.kick * 5 + f.bass * 1.5);
+        const tail = (0.006 + streak * 0.05) * boost;
+        const paths: Path2D[] = Array.from({ length: LEVELS }, () => new Path2D());
+        const dots: Path2D[] = Array.from({ length: LEVELS }, () => new Path2D());
+        for (let i = 0; i < n; i++) {
+          // 星の横方向の位置（中心付近が空きすぎないよう半径で分布）
+          const ang = R(i, 0) * Math.PI * 2;
+          const rad = 0.04 + Math.sqrt(R(i, 1)) * 1.6;
+          const x = Math.cos(ang) * rad;
+          const y = Math.sin(ang) * rad;
+          const z = Z_NEAR + mod(R(i, 2) * (Z_FAR - Z_NEAR) - traveled, Z_FAR - Z_NEAR);
+          const sx = cx + (x / z) * focal * 0.25;
+          const sy = cy + (y / z) * focal * 0.25;
+          if (sx < -50 || sx > W + 50 || sy < -50 || sy > H + 50) continue;
+          const z2 = Math.min(Z_FAR, z + tail);
+          const tx = cx + (x / z2) * focal * 0.25;
+          const ty = cy + (y / z2) * focal * 0.25;
+          // 近いほど明るい。現れた直後（奥）は暗く
+          const near = 1 - (z - Z_NEAR) / (Z_FAR - Z_NEAR);
+          const appear = Math.min(1, (Z_FAR - z) / 0.15);
+          const b = Math.min(1, near * near * 1.3 + 0.08) * appear * (0.7 + R(i, 3) * 0.3);
+          const lv = Math.min(LEVELS - 1, Math.floor(b * LEVELS));
+          if (Math.hypot(sx - tx, sy - ty) < 1.2) dots[lv].rect(sx, sy, 1.4 * s, 1.4 * s);
+          else {
+            paths[lv].moveTo(tx, ty);
+            paths[lv].lineTo(sx, sy);
+          }
+        }
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        ctx.lineCap = "round";
+        for (let lv = 0; lv < LEVELS; lv++) {
+          const a = (lv + 1) / LEVELS;
+          ctx.globalAlpha = Math.min(1, 0.15 + a * 0.85);
+          ctx.strokeStyle = lv >= LEVELS - 2 ? "#ffffff" : "#cfe0ff";
+          ctx.lineWidth = (0.7 + a * 2.6) * s;
+          ctx.stroke(paths[lv]);
+          ctx.fillStyle = "#dfe9ff";
+          ctx.fill(dots[lv]);
+        }
+        // 進む先の淡い光（ワープで強く）
+        const g = Math.min(W, H) * (0.12 + warp * f.kick * 0.25);
+        ctx.globalAlpha = 0.15 + warp * f.kick * 0.5;
+        ctx.drawImage(sprites.tintedGlow("#9fc4ff"), cx - g, cy - g, g * 2, g * 2);
+        ctx.restore();
+      },
+    };
+  },
+};
+
+// ------------------------------------------------------------------ 星空（以前の「宇宙空間」）
+
+const MAX_SKY_STARS = 2000;
+
+export const starrySky: VisualizerPlugin = {
+  ...starrySkyMeta,
+  create() {
+    const R = table(MAX_SKY_STARS, 6, 101);
     let nebula: OffscreenCanvas | null = null;
     let nebKey = "";
     return {
       render(ctx, frame, p) {
         const { width: W, height: H, t, features: f, sprites } = frame;
-        const n = Math.min(MAX_STARS, Math.round(num(p, "stars", 900)));
+        const n = Math.min(MAX_SKY_STARS, Math.round(num(p, "stars", 900)));
         const drift = num(p, "drift", 0.25);
         const s = H / 1080;
+        const starSize = num(p, "starSize", 1);
 
         // 背景を宇宙の暗さに寄せる
         const darken = num(p, "darken", 0.55);
@@ -101,7 +233,7 @@ export const space: VisualizerPlugin = {
             if (Math.min(3, Math.floor(b * 4)) !== level) continue;
             const x = mod(R(i, 0) - t * drift * 0.012 * depth, 1) * W;
             const y = R(i, 1) * H;
-            const size = (0.8 + depth * 1.8) * s;
+            const size = (0.8 + depth * 1.8) * s * starSize;
             ctx.rect(x, y, size, size);
           }
           ctx.globalAlpha = 0.2 + level * 0.25;
@@ -114,7 +246,7 @@ export const space: VisualizerPlugin = {
           const tw = 0.5 + 0.5 * Math.sin(t * (1 + R(i, 3) * 3) + R(i, 4) * 6.283);
           const x = mod(R(i, 0) - t * drift * 0.012 * depth, 1) * W;
           const y = R(i, 1) * H;
-          const g = (10 + 18 * depth) * s * (0.8 + tw * 0.4 + f.kick * 0.3);
+          const g = (10 + 18 * depth) * s * starSize * (0.8 + tw * 0.4 + f.kick * 0.3);
           ctx.globalAlpha = 0.35 + tw * 0.5;
           ctx.drawImage(sprites.tintedGlow(R(i, 4) < 0.5 ? "#bcd4ff" : "#ffe7c2"), x - g, y - g, g * 2, g * 2);
         }
