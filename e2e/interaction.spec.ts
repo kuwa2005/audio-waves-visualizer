@@ -1,12 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-/** 開発期間中のデモ素材の自動読み込みと、プレビュー上のマウス操作（移動・拡大縮小・リセット） */
-test("デモ素材が自動で読み込まれ、レイヤーをドラッグ・ホイール・ダブルクリックで操作できる", async ({ page }) => {
+/** ?demo によるデモ素材の読み込みと、プレビュー上のマウス操作（移動・拡大縮小・リセット） */
+test("?demo でデモ素材を読み込み、レイヤーをドラッグ・ホイール・ダブルクリックで操作できる", async ({ page }) => {
   test.setTimeout(120_000);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("");
+  await page.goto("?demo"); // デモ素材を読み込む
   await expect(page.getByTestId("perf-bpm")).toBeVisible({ timeout: 60_000 });
   await expect(page.getByText("持ち帰るとは行ったけど（デモ）.m4a")).toBeVisible();
 

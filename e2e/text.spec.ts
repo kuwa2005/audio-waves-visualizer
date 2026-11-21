@@ -1,12 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-/** タイトルと字幕（デモ素材の字幕を自動読み込み） */
+/** タイトルと字幕（?demo でデモ素材の字幕を読み込む） */
 test("字幕とタイトルを表示・調整・移動できる", async ({ page }) => {
   test.setTimeout(120_000);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("");
+  await page.goto("?demo"); // デモ素材を読み込む
   await expect(page.getByTestId("perf-bpm")).toBeVisible({ timeout: 60_000 });
   await page.getByTestId("step-text").click();
   await expect(page.getByTestId("subs-info")).toContainText("件の字幕");

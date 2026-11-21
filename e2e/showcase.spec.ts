@@ -12,7 +12,7 @@ test("全ビジュアライザー・全エフェクトがエラーなく描画�
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
 
-  await page.goto("");
+  await page.goto("?demo"); // デモ素材を読み込む
   await expect(page.getByTestId("perf-bpm")).toBeVisible({ timeout: 60_000 });
   const tl = (await page.getByTestId("timeline").boundingBox())!;
   await page.mouse.click(tl.x + tl.width * 0.42, tl.y + tl.height / 2);

@@ -19,7 +19,7 @@ test("素材を読み込み、解析・再生・比率切替・レイヤー追�
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
 
-  await page.goto("?nosample");
+  await page.goto("");
   await expect(page.getByTestId("perf-wasm")).toHaveText("OK", { timeout: 30_000 });
 
   // 旧版リンクが赤く目立つこと

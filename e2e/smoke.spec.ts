@@ -17,7 +17,15 @@ test("描画エンジンが起動し、WASM が動き、フレームが進む", 
   // HUD に FPS が出るまで待つ（0.5 秒ごとに更新）
   await expect.poll(async () => Number(await page.getByTestId("perf-fps").textContent()), { timeout: 10_000 }).toBeGreaterThan(1);
 
-  // 旧版へのリンク
+  // 本番仕様: 起動時に素材は読み込まない
+  await page.waitForTimeout(1500);
+  await expect(page.getByTestId("perf-bpm")).toHaveCount(0);
+  await expect(page.getByTestId("play-button")).toBeDisabled();
+
+  // 旧版へのリンク（赤の静的表示・点滅なし）
+  const classic = page.getByTestId("classic-link");
+  expect(await classic.evaluate((el) => getComputedStyle(el).animationName)).toBe("none");
+  expect(await classic.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(220, 38, 38)");
   await expect(page.getByTestId("classic-link")).toHaveAttribute("href", "/visualizer-classic/");
 
   // SharedArrayBuffer 用のクロスオリジン分離が効いていること

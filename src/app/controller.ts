@@ -70,15 +70,14 @@ function onWorkerMessage(msg: FromWorker): void {
 }
 
 /**
- * 開発期間中は、起動時にデモ素材（public/sample/）を自動で読み込む。
- * URL に ?nosample を付けると無効。開発期間が終わったら DEV_AUTOLOAD_DEMO を false にする。
+ * デモ素材（public/sample/）の読み込み。本番では起動時に何も読み込まない。
+ * URL に ?demo を付けたときだけ読み込む（動作確認・自動テスト用）。
  */
-const DEV_AUTOLOAD_DEMO = true;
 const DEMO_FILES = ["demo.m4a", "demo-16x9.jpg", "demo-9x16.jpg", "demo-1x1.jpg", "demo.srt"];
 let demoLoaded = false;
 
 function shouldAutoloadDemo(): boolean {
-  return DEV_AUTOLOAD_DEMO && !demoLoaded && !new URLSearchParams(location.search).has("nosample") && !useStore.getState().audioFile;
+  return !demoLoaded && new URLSearchParams(location.search).has("demo") && !useStore.getState().audioFile;
 }
 
 export async function loadDemo(): Promise<void> {
