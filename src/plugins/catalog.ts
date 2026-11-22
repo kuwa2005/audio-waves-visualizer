@@ -10,12 +10,13 @@ export const neonBarsMeta: PluginMeta = {
   id: "neon-bars",
   name: "ネオンバー",
   description: "発光する周波数バー。ビートで床が光り、ピークが残る",
+  paletteKeys: ["colorLow", "colorHigh"],
   params: [
     { key: "bars", label: "本数", type: "number", min: 16, max: 192, step: 8, default: 96 },
     { key: "height", label: "高さ", type: "number", min: 0.1, max: 1, step: 0.05, default: 0.55 },
     { key: "y", label: "位置（縦）", type: "number", min: 0.2, max: 1, step: 0.01, default: 0.82 },
-    { key: "hueFrom", label: "色相（低音側）", type: "number", min: 0, max: 360, step: 1, default: 275, unit: "°" },
-    { key: "hueTo", label: "色相（高音側）", type: "number", min: 0, max: 360, step: 1, default: 185, unit: "°" },
+    { key: "colorLow", label: "色（低音側）", type: "color", default: "#9b5cff" },
+    { key: "colorHigh", label: "色（高音側）", type: "color", default: "#22e1ff" },
     { key: "glow", label: "発光", type: "number", min: 0, max: 1, step: 0.05, default: 0.6 },
     { key: "mirror", label: "鏡像（下に反射）", type: "boolean", default: true },
   ],
@@ -31,6 +32,7 @@ export const pulseRingMeta: PluginMeta = {
   id: "pulse-ring",
   name: "パルスリング",
   description: "円形スペクトラム。ビートごとに衝撃波リングが広がる",
+  paletteKeys: ["color", "accent"],
   params: [
     { key: "radius", label: "半径", type: "number", min: 0.05, max: 0.45, step: 0.01, default: 0.2 },
     { key: "spikes", label: "トゲの数", type: "number", min: 32, max: 256, step: 8, default: 128 },
@@ -54,13 +56,14 @@ export const warpTunnelMeta: PluginMeta = {
   id: "warp-tunnel",
   name: "ワープトンネル",
   description: "奥から手前へ飛んでくる光のリング。低音で加速、ビートで閃光",
+  paletteKeys: ["colorA", "colorB"],
   params: [
     { key: "rings", label: "リングの数", type: "number", min: 12, max: 64, step: 1, default: 36 },
     { key: "speed", label: "速さ", type: "number", min: 0.1, max: 3, step: 0.05, default: 1 },
     { key: "sides", label: "形（角の数、0=円）", type: "number", min: 0, max: 12, step: 1, default: 6 },
     { key: "twist", label: "ねじれ", type: "number", min: -1, max: 1, step: 0.05, default: 0.35 },
-    { key: "hue", label: "色相", type: "number", min: 0, max: 360, step: 1, default: 200, unit: "°" },
-    { key: "hueShift", label: "色の変化", type: "number", min: 0, max: 180, step: 1, default: 90, unit: "°" },
+    { key: "colorA", label: "色（奥）", type: "color", default: "#2f9bff" },
+    { key: "colorB", label: "色（手前・中心の光）", type: "color", default: "#c45bff" },
     { key: "light", label: "ビートで光る中心の光の強さ", type: "number", min: 0, max: 100, step: 5, default: 100, unit: "%" },
   ],
   bounds: full,
@@ -70,6 +73,7 @@ export const galaxyMeta: PluginMeta = {
   id: "particle-galaxy",
   name: "パーティクル・ギャラクシー",
   description: "数万の光の粒が渦を巻き、キックで爆発する（WASM で計算）",
+  paletteKeys: ["inner", "outer"],
   params: [
     { key: "count", label: "粒の数", type: "select", default: "40000", options: [
       { value: "15000", label: "15,000（軽い）" },
@@ -108,6 +112,7 @@ export const lineScapeMeta: PluginMeta = {
   id: "line-scape",
   name: "3D ラインスケープ",
   description: "スペクトルの履歴が奥から流れてくる立体的な地形",
+  paletteKeys: ["color", "far"],
   params: [
     { key: "lines", label: "線の数", type: "number", min: 16, max: 72, step: 2, default: 44 },
     { key: "history", label: "履歴の長さ（秒）", type: "number", min: 0.5, max: 6, step: 0.1, default: 2.4 },
@@ -180,6 +185,7 @@ export const lineSpectrumMeta: PluginMeta = {
   id: "line-spectrum",
   name: "ライン",
   description: "なめらかな曲線のスペクトル。発光・塗りつぶし・上下鏡像",
+  paletteKeys: ["colorA", "colorB"],
   params: [
     { key: "points", label: "細かさ", type: "number", min: 32, max: 256, step: 8, default: 128 },
     { key: "height", label: "高さ", type: "number", min: 0.05, max: 0.8, step: 0.01, default: 0.35 },
@@ -203,6 +209,7 @@ export const graphicEqMeta: PluginMeta = {
   id: "graphic-eq",
   name: "グライコ",
   description: "グラフィックイコライザー風の LED 表示。ピークホールドと周波数目盛り付き",
+  paletteKeys: ["low", "high", "mid"],
   params: [
     { key: "bands", label: "バンド数", type: "select", default: "31", options: [{ value: "16", label: "16 バンド" }, { value: "31", label: "31 バンド（1/3 オクターブ）" }] },
     { key: "segments", label: "段数", type: "number", min: 8, max: 40, step: 1, default: 24 },
@@ -228,12 +235,13 @@ export const radialBarsMeta: PluginMeta = {
   id: "radial-bars",
   name: "サークルバー",
   description: "円の周りに放射状のバー。中央で背景画像が回り、低音で脈打つ",
+  paletteKeys: ["colorA", "colorB"],
   params: [
     { key: "bars", label: "本数", type: "number", min: 32, max: 240, step: 4, default: 120 },
     { key: "radius", label: "半径", type: "number", min: 0.08, max: 0.4, step: 0.01, default: 0.2 },
     { key: "length", label: "バーの長さ", type: "number", min: 0.05, max: 0.5, step: 0.01, default: 0.2 },
-    { key: "hue", label: "色相", type: "number", min: 0, max: 360, step: 1, default: 190, unit: "°" },
-    { key: "hueRange", label: "色の幅", type: "number", min: 0, max: 360, step: 1, default: 140, unit: "°" },
+    { key: "colorA", label: "色（低音側・縁）", type: "color", default: "#22d3ee" },
+    { key: "colorB", label: "色（高音側）", type: "color", default: "#c45bff" },
     { key: "art", label: "中央に背景画像", type: "boolean", default: true },
     { key: "spin", label: "画像の回転", type: "number", min: -1, max: 1, step: 0.05, default: 0.15 },
   ],
@@ -298,6 +306,7 @@ export const spaceMeta: PluginMeta = {
   name: "宇宙空間",
   description: "宇宙船で星の海を進むように、奥から星が光の筋になって流れてくる。ビートで光の筋が伸びる（ワープ）",
   category: "ambient",
+  paletteKeys: ["hueA", "hueB"],
   params: [
     { key: "darken", label: "背景を暗くする", type: "number", min: 0, max: 1, step: 0.05, default: 0.75 },
     { key: "stars", label: "星の数", type: "number", min: 200, max: 3000, step: 50, default: 1400 },
@@ -319,6 +328,7 @@ export const starrySkyMeta: PluginMeta = {
   description: "またたく星々と星雲の夜空。ときどき流れ星（音には反応しない静かな背景）",
   category: "ambient",
   beatReactive: false,
+  paletteKeys: ["hueA", "hueB"],
   params: [
     { key: "darken", label: "背景を暗くする", type: "number", min: 0, max: 1, step: 0.05, default: 0.55 },
     { key: "stars", label: "星の数", type: "number", min: 100, max: 2000, step: 50, default: 900 },

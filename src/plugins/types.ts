@@ -18,6 +18,8 @@ export type PluginMeta = {
   category?: "spectrum" | "ambient";
   /** false なら音に反応しない演出（「ビートへの感度」を付けない） */
   beatReactive?: boolean;
+  /** 配色プリセットを当てる色の項目（プリセットの 1 色目, 2 色目, … の順） */
+  paletteKeys?: string[];
   params: ParamDef[];
   /** 変形前の描画範囲（出力ピクセル座標）。移動・拡大の基準点と、マウスの当たり判定に使う */
   bounds(params: ParamValues, W: number, H: number): Rect;

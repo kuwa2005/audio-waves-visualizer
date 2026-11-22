@@ -1,6 +1,7 @@
 import { warpTunnelMeta } from "./catalog";
+import { mixColor } from "./color";
 import { hash01 } from "./rng";
-import { num, type VisualizerPlugin } from "./types";
+import { num, str, type VisualizerPlugin } from "./types";
 
 const STARS = 140;
 
@@ -23,8 +24,8 @@ export const warpTunnel: VisualizerPlugin = {
         const speed = num(params, "speed", 1);
         const sides = Math.round(num(params, "sides", 6));
         const twist = num(params, "twist", 0.35);
-        const hue = num(params, "hue", 200);
-        const hueShift = num(params, "hueShift", 90);
+        const colorA = str(params, "colorA", "#2f9bff");
+        const colorB = str(params, "colorB", "#c45bff");
         const cx = W / 2;
         const cy = H / 2;
         const m = Math.min(W, H);
@@ -41,7 +42,7 @@ export const warpTunnel: VisualizerPlugin = {
         const light = Math.min(100, Math.max(0, num(params, "light", 100))) / 100;
         ctx.globalAlpha = Math.min(1, (0.3 + f.kick * 0.7) * light);
         const core = m * (0.18 + f.bass * 0.12);
-        ctx.drawImage(sprites.tintedGlow(`hsl(${hue + hueShift} 100% 70%)`), cx - core, cy - core, core * 2, core * 2);
+        ctx.drawImage(sprites.tintedGlow(colorB), cx - core, cy - core, core * 2, core * 2);
 
         // 光の筋（星）
         ctx.lineCap = "round";
@@ -52,7 +53,7 @@ export const warpTunnel: VisualizerPlugin = {
           const r2 = r1 * (1.08 + v * 0.6);
           if (r1 > maxR) continue;
           ctx.globalAlpha = Math.min(1, z * z * (0.6 + f.high));
-          ctx.strokeStyle = `hsl(${hue + hueShift * hash01(i + 7)} 90% 75%)`;
+          ctx.strokeStyle = mixColor(colorA, colorB, hash01(i + 7));
           ctx.lineWidth = 1 + z * 3;
           ctx.beginPath();
           ctx.moveTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
@@ -72,7 +73,8 @@ export const warpTunnel: VisualizerPlugin = {
           const fadeNear = Math.min(1, z / 0.08);
           const fadeFar = Math.min(1, (1 - z) / 0.25);
           ctx.globalAlpha = fadeNear * fadeFar * (0.35 + amp * 0.65);
-          ctx.strokeStyle = `hsl(${hue + hueShift * (1 - z) + t * 8} 95% ${55 + amp * 25}%)`;
+          // 手前（z が小さい）ほど 2 色目に寄せる。明るさは不透明度で表す
+          ctx.strokeStyle = mixColor(colorA, colorB, 1 - z);
           ctx.lineWidth = 1.5 + (1 - z) * (6 + f.kick * 10);
           const rot = twist * z * 4 + t * 0.15 * twist;
           ctx.beginPath();

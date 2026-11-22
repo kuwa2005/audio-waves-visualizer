@@ -419,3 +419,27 @@ describe("AAC 互換モードの頭合わせ", () => {
     expect(out[n - 1]).toBe(0); // 末尾は無音で埋める
   });
 });
+
+import { COLOR_PRESETS, matchingPreset, presetParams } from "../plugins/palettes";
+
+describe("配色プリセット", () => {
+  it("has 10 presets with valid colors", () => {
+    expect(COLOR_PRESETS).toHaveLength(10);
+    expect(new Set(COLOR_PRESETS.map((p) => p.id)).size).toBe(10);
+    for (const p of COLOR_PRESETS) for (const c of p.colors) expect(c).toMatch(/^#[0-9a-f]{6}$/);
+  });
+  it("every layer with two or more color params offers presets, and the keys are color params", () => {
+    for (const m of CATALOG) {
+      const colorKeys = m.params.filter((d) => d.type === "color").map((d) => d.key);
+      if (colorKeys.length >= 2) expect(m.paletteKeys, m.id).toBeDefined();
+      for (const k of m.paletteKeys ?? []) expect(colorKeys, `${m.id}.${k}`).toContain(k);
+    }
+  });
+  it("applies a preset in order and recognizes it", () => {
+    const fire = COLOR_PRESETS.find((p) => p.id === "fire")!;
+    const params = presetParams(fire, ["a", "b", "c", "d"]);
+    expect(params).toEqual({ a: fire.colors[0], b: fire.colors[1], c: fire.colors[2], d: fire.colors[0] });
+    expect(matchingPreset(params, ["a", "b", "c", "d"])).toBe("fire");
+    expect(matchingPreset({ ...params, a: "#000000" }, ["a", "b", "c", "d"])).toBeNull();
+  });
+});

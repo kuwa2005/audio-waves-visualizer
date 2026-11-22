@@ -68,6 +68,8 @@ type Actions = {
   removeVisualizer(id: string): void;
   toggleVisualizer(id: string): void;
   setParam(layerId: string, key: string, value: ParamValue): void;
+  /** 複数のパラメータをまとめて変える（配色プリセット等） */
+  setParams(layerId: string, patch: Record<string, ParamValue>): void;
   setTransform(layerId: string, patch: Partial<LayerTransform>): void;
   addEffect(pluginId: string): void;
   removeEffect(id: string): void;
@@ -142,6 +144,8 @@ export const useStore = create<State & Actions>((set) => ({
       selectedLayerId: s.selectedLayerId === id ? null : s.selectedLayerId,
     })),
   toggleVisualizer: (id) => set((s) => ({ scene: mapVisualizers(s.scene, (v) => (v.id === id ? { ...v, enabled: !v.enabled } : v)) })),
+  setParams: (layerId, patch) =>
+    set((s) => ({ scene: mapVisualizers(s.scene, (v) => (v.id === layerId ? { ...v, params: { ...v.params, ...patch } } : v)) })),
   setParam: (layerId, key, value) =>
     set((s) => ({ scene: mapVisualizers(s.scene, (v) => (v.id === layerId ? { ...v, params: { ...v.params, [key]: value } } : v)) })),
   setTransform: (layerId, patch) =>

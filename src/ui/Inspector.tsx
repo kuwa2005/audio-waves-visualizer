@@ -1,6 +1,7 @@
 import { findMeta } from "../plugins/catalog";
 import { findEffectMeta } from "../plugins/effectCatalog";
 import { SUBTITLE_PARAMS, TITLE_PARAMS } from "../text/textCatalog";
+import { COLOR_PRESETS, matchingPreset, presetParams } from "../plugins/palettes";
 import type { ParamDef } from "../plugins/types";
 import { IDENTITY_TRANSFORM, SCALE_MAX, SCALE_MIN, type LayerTransform, type ParamValue } from "../engine/scene";
 import { useStore } from "../state/store";
@@ -75,6 +76,41 @@ function Field({ def, value, onChange }: { def: ParamDef; value: ParamValue | un
   }
 }
 
+
+/** 配色プリセット: 押すと色の項目がまとめて切り替わる */
+function PalettePicker({ layerId, keys, params }: { layerId: string; keys: string[]; params: Record<string, unknown> }) {
+  const setParams = useStore((s) => s.setParams);
+  const current = matchingPreset(params, keys);
+  return (
+    <section className="space-y-2 rounded-xl border border-line p-3" data-testid="palette-picker">
+      <h4 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">配色プリセット</h4>
+      <div className="grid grid-cols-5 gap-1.5">
+        {COLOR_PRESETS.map((p) => {
+          const cols = keys.map((_, i) => p.colors[i % p.colors.length]);
+          const on = current === p.id;
+          return (
+            <button
+              key={p.id}
+              data-testid={`palette-${p.id}`}
+              aria-pressed={on}
+              title={p.name}
+              aria-label={`配色: ${p.name}`}
+              onClick={() => setParams(layerId, presetParams(p, keys))}
+              className={`flex h-7 overflow-hidden rounded-md border transition ${on ? "border-accent-to ring-2 ring-accent-to/60" : "border-line hover:border-ink-muted"}`}
+            >
+              {cols.map((c, i) => (
+                <span key={i} className="h-full flex-1" style={{ background: c }} />
+              ))}
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-[11px] text-ink-muted" data-testid="palette-name">
+        {current ? `選択中: ${COLOR_PRESETS.find((p) => p.id === current)!.name}` : "下の色の項目で個別に変更することもできます"}
+      </p>
+    </section>
+  );
+}
 
 /** 位置・大きさ（ビジュアライザー・タイトル・字幕で共通） */
 function TransformControls({ id, transform }: { id: string; transform: LayerTransform }) {
@@ -156,6 +192,7 @@ export function Inspector() {
         <h3 className="text-[15px] font-semibold text-ink">{meta.name}</h3>
         <p className="text-xs text-ink-muted">{meta.description}</p>
       </div>
+      {meta.paletteKeys && <PalettePicker layerId={layer.id} keys={meta.paletteKeys} params={layer.params} />}
       <TransformControls id={layer.id} transform={layer.transform} />
       {meta.params.map((def) => (
         <Field key={def.key} def={def} value={layer.params[def.key]} onChange={(v) => setParam(layer.id, def.key, v)} />

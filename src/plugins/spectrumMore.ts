@@ -1,4 +1,5 @@
 import { oscilloscopeMeta, radialBarsMeta, spectrogramMeta } from "./catalog";
+import { mixColor } from "./color";
 import { num, str, type VisualizerPlugin } from "./types";
 
 /** 対数周波数で n 本に分けた各区間の最大値（0..1、高域を持ち上げ） */
@@ -41,8 +42,8 @@ export const radialBars: VisualizerPlugin = {
         const m = Math.min(W, H);
         const r0 = m * num(p, "radius", 0.2) * (1 + f.kick * 0.06);
         const len = m * num(p, "length", 0.2);
-        const hue = num(p, "hue", 190);
-        const range = num(p, "hueRange", 140);
+        const colorA = str(p, "colorA", "#22d3ee");
+        const colorB = str(p, "colorB", "#c45bff");
         const cx = W / 2;
         const cy = H / 2;
 
@@ -77,7 +78,7 @@ export const radialBars: VisualizerPlugin = {
         ctx.lineCap = "round";
         const lw = Math.max(2, ((Math.PI * 2 * r0) / n) * 0.55);
         for (let b = 0; b < HUE_BUCKETS; b++) {
-          const col = `hsl(${hue + (range * b) / HUE_BUCKETS} 95% 62%)`;
+          const col = mixColor(colorA, colorB, b / (HUE_BUCKETS - 1));
           ctx.strokeStyle = col;
           ctx.globalAlpha = 0.35;
           ctx.lineWidth = lw * 2.6;
@@ -88,7 +89,7 @@ export const radialBars: VisualizerPlugin = {
         }
         // 縁のリング
         ctx.globalAlpha = 0.7 + f.kick * 0.3;
-        ctx.strokeStyle = `hsl(${hue} 95% 70%)`;
+        ctx.strokeStyle = colorA;
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.arc(cx, cy, r0, 0, Math.PI * 2);

@@ -1,5 +1,6 @@
 import { neonBarsMeta } from "./catalog";
-import { num, type VisualizerPlugin } from "./types";
+import { mixColor } from "./color";
+import { num, str, type VisualizerPlugin } from "./types";
 
 /**
  * ネオンバー: 対数周波数の棒グラフ。
@@ -23,8 +24,8 @@ export const neonBars: VisualizerPlugin = {
         const bars = Math.round(num(params, "bars", 96));
         const hFrac = num(params, "height", 0.55);
         const yFrac = num(params, "y", 0.82);
-        const hueFrom = num(params, "hueFrom", 275);
-        const hueTo = num(params, "hueTo", 185);
+        const colorLow = str(params, "colorLow", "#9b5cff");
+        const colorHigh = str(params, "colorHigh", "#22e1ff");
         const glow = num(params, "glow", 0.6);
         const mirror = params.mirror !== false;
         const { width: W, height: H, features: f, dt, sprites } = frame;
@@ -33,10 +34,10 @@ export const neonBars: VisualizerPlugin = {
           levels = new Float32Array(bars);
           peaks = new Float32Array(bars);
         }
-        const key = `${bars}:${hueFrom}:${hueTo}`;
+        const key = `${bars}:${colorLow}:${colorHigh}`;
         if (key !== colorKey) {
           colorKey = key;
-          colors = Array.from({ length: bars }, (_, i) => `hsl(${hueFrom + ((hueTo - hueFrom) * i) / Math.max(1, bars - 1)} 95% 62%)`);
+          colors = Array.from({ length: bars }, (_, i) => mixColor(colorLow, colorHigh, i / Math.max(1, bars - 1)));
         }
 
         // スペクトル → バー（対数スケール、各区間の最大値）
