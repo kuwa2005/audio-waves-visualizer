@@ -6,6 +6,10 @@ const remote = process.env.AWV_URL;
 export default defineConfig({
   testDir: "e2e",
   timeout: 60_000,
+  // 描画・書き出しの重いテストが多いので、同時実行せず 1 つずつ（CI の負荷で操作のタイミングが崩れないように）
+  workers: 1,
+  // CI だけ、一時的な揺らぎに備えて 1 回まで再試行する
+  retries: process.env.CI ? 1 : 0,
   use: {
     baseURL: remote ?? "http://localhost:4173/visualizer/",
     ...devices["Desktop Chrome"],
