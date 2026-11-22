@@ -81,8 +81,30 @@ export const SUBTITLE_PARAMS: ParamDef[] = [
       { value: "slide", label: "下から" },
       { value: "karaoke", label: "カラオケ（色が塗られる）" },
       { value: "typewriter", label: "タイプライター" },
+      { value: "charPop", label: "一文字ずつポップ" },
+      { value: "charDrop", label: "一文字ずつ落ちてくる（弾む）" },
+      { value: "charSpin", label: "一文字ずつ回転して登場" },
+      { value: "wave", label: "波打つ" },
+      { value: "bounceBeat", label: "ビートで跳ねる" },
+      { value: "scramble", label: "デコード（ランダムな文字から確定）" },
+      { value: "glitch", label: "グリッチ（ずれ・色ずれ・ちらつき）" },
+      { value: "neon", label: "ネオン管（ちかちか点灯）" },
+      { value: "scatter", label: "散らばって集まり、弾け飛ぶ" },
+      { value: "impact", label: "ドーン（叩きつけて揺れる）" },
+      { value: "random", label: "ランダム配置（位置・角度・大きさ）" },
     ],
   },
+  {
+    key: "writing",
+    label: "文字の向き",
+    type: "select",
+    default: "horizontal",
+    options: [
+      { value: "horizontal", label: "横書き" },
+      { value: "vertical", label: "縦書き" },
+    ],
+  },
+  { key: "vx", label: "縦書きの横位置", type: "number", min: 0.05, max: 0.95, step: 0.01, default: 0.88 },
   { key: "highlight", label: "カラオケの色", type: "color", default: "#ffd23f" },
   { key: "offset", label: "タイミング調整（秒）", type: "number", min: -10, max: 10, step: 0.05, default: 0 },
 ];
@@ -171,8 +193,25 @@ export function titleBounds(p: ParamValues, W: number, H: number): Rect {
 /** 字幕の表示枠（2 行ぶん）。当たり判定と拡大の基準に使う */
 export function subtitleBounds(p: ParamValues, W: number, H: number): Rect {
   const st = styleFrom(p, H);
+  if (str(p, "writing", "horizontal") === "vertical") {
+    // 縦書き: 2 列ぶん、画面の高さの 8 割
+    const w = st.sizePx * 1.35 * 2;
+    const h = H * 0.8;
+    return { x: W * num(p, "vx", 0.88) - w / 2, y: (H - h) / 2, w, h };
+  }
   const w = W * num(p, "maxWidth", 0.86);
   const h = st.sizePx * 1.3 * 2 + st.sizePx * 0.4;
   const cy = H * num(p, "y", 0.88);
   return { x: (W - w) / 2, y: cy - h / 2, w, h };
+}
+
+/** 縦書きの 1 列に入る文字数で区切る */
+export function wrapVertical(text: string, maxChars: number): string[] {
+  const out: string[] = [];
+  for (const para of text.split("\n")) {
+    const chars = [...para];
+    if (chars.length === 0) out.push("");
+    for (let i = 0; i < chars.length; i += Math.max(1, maxChars)) out.push(chars.slice(i, i + maxChars).join(""));
+  }
+  return out;
 }

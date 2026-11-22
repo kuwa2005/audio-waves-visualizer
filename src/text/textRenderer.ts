@@ -2,7 +2,8 @@ import type { AudioFeatures } from "../engine/features";
 import { resolveRange, type Scene } from "../engine/scene";
 import { num, str } from "../plugins/types";
 import { activeCue } from "./subtitles";
-import { measure, styleFrom, subtitleBounds, titleAnchor, titleBounds, wrapText, type TextStyle } from "./textCatalog";
+import { measure, styleFrom, subtitleBounds, titleAnchor, titleBounds, wrapText, wrapVertical, type TextStyle } from "./textCatalog";
+import { blockTransform, GlyphCache, glyphState, layoutGlyphs, type AnimInput, type KineticAnim } from "./kinetic";
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 const easeOut = (x: number) => 1 - Math.pow(1 - x, 3);
@@ -87,11 +88,12 @@ class TextImageCache {
 /** タイトルと字幕の描画（エフェクトの後、いちばん手前） */
 export class TextRenderer {
   private cache = new TextImageCache();
+  private glyphs = new GlyphCache();
 
   render(ctx: OffscreenCanvasRenderingContext2D, scene: Scene, W: number, H: number, t: number, duration: number, f: AudioFeatures): void {
     const range = duration > 0 ? resolveRange(scene.range, duration) : { start: 0, end: Infinity };
     if (scene.title.enabled) this.drawTitle(ctx, scene, W, H, t, range, f);
-    if (scene.subtitles.enabled && scene.subtitles.cues.length) this.drawSubtitle(ctx, scene, W, H, t);
+    if (scene.subtitles.enabled && scene.subtitles.cues.length) this.drawSubtitle(ctx, scene, W, H, t, f);
   }
 
   private place(
@@ -166,46 +168,104 @@ export class TextRenderer {
     this.place(ctx, img, cx + tr.x * W, b.y + b.h / 2 + tr.y * H + dy, tr.scale * scale * pulse, alpha);
   }
 
-  private drawSubtitle(ctx: OffscreenCanvasRenderingContext2D, scene: Scene, W: number, H: number, t: number): void {
+  private drawSubtitle(ctx: OffscreenCanvasRenderingContext2D, scene: Scene, W: number, H: number, t: number, f: AudioFeatures): void {
     const L = scene.subtitles;
     const p = L.params;
-    const cue = activeCue(L.cues, t, num(p, "offset", 0));
+    const offset = num(p, "offset", 0);
+    const cue = activeCue(L.cues, t, offset);
     if (!cue) return;
-    const tt = t - num(p, "offset", 0);
-    const st = styleFrom(p, H);
-    const maxW = W * num(p, "maxWidth", 0.86);
-    const anim = str(p, "anim", "fade");
-    const inP = clamp01((tt - cue.start) / 0.25);
-    const outP = clamp01((cue.end - tt) / 0.2);
-    let alpha = anim === "none" ? 1 : Math.min(inP, outP);
-    let scale = 1;
-    let dy = 0;
-    if (anim === "pop") scale = 0.8 + 0.2 * easeOutBack(inP);
-    if (anim === "slide") dy = (1 - easeOut(inP)) * st.sizePx * 0.7;
+    const cueIndex = L.cues.indexOf(cue);
+    const tt = t - offset;
+    const anim = str(p, "anim", "fade") as KineticAnim;
+    const vertical = str(p, "writing", "horizontal") === "vertical";
+    let st = styleFrom(p, H);
+    // ネオン管は光彩が無いと光って見えないので最低限付ける
+    if (anim === "neon" && st.glow < 0.7) st = { ...st, glow: 0.9 };
+    const lines = vertical ? wrapVertical(cue.text, Math.max(1, Math.floor((H * 0.8) / (st.sizePx * 1.05)))) : wrapText(cue.text, st, W * num(p, "maxWidth", 0.86));
+    const { glyphs, width: bw, height: bh } = layoutGlyphs(lines, st, vertical);
+    if (glyphs.length === 0) return;
 
-    let text = cue.text;
-    if (anim === "typewriter") {
-      const chars = [...cue.text];
-      const dur = Math.min((cue.end - cue.start) * 0.6, chars.length * 0.08);
-      text = chars.slice(0, Math.ceil(chars.length * clamp01((tt - cue.start) / Math.max(0.05, dur)))).join("");
-      alpha = outP;
-    }
-    const lines = wrapText(text, st, maxW);
     const b = subtitleBounds(p, W, H);
     const tr = L.transform;
-    const cx = W / 2 + tr.x * W;
-    const cy = b.y + b.h / 2 + tr.y * H + dy;
-    const s = tr.scale * scale;
-
-    if (anim === "karaoke") {
-      // 元の色で全体を描き、進み具合のぶんだけ色付き版を左から重ねる
-      const base = this.cache.get([{ lines, style: st }], 0);
-      const hi = this.cache.get([{ lines, style: st, colorOverride: str(p, "highlight", "#ffd23f") }], 0);
-      const prog = clamp01((tt - cue.start) / Math.max(0.1, cue.end - cue.start));
-      this.place(ctx, base, cx, cy, s, alpha);
-      this.place(ctx, hi, cx, cy, s, alpha, prog);
-      return;
+    const bt = blockTransform(anim, cueIndex, W, H);
+    let cx = b.x + b.w / 2 + tr.x * W + bt.dx;
+    let cy = b.y + b.h / 2 + tr.y * H + bt.dy;
+    if (anim === "random") {
+      // ランダム配置でも画面からはみ出さないよう、回転を含めた大きさで中心を収める
+      const k = tr.scale * bt.scale;
+      const c = Math.abs(Math.cos(bt.rot));
+      const sn = Math.abs(Math.sin(bt.rot));
+      const hw = ((bw * c + bh * sn) / 2) * k + st.sizePx * 0.3;
+      const hh = ((bw * sn + bh * c) / 2) * k + st.sizePx * 0.3;
+      cx = hw * 2 >= W ? W / 2 : Math.min(W - hw, Math.max(hw, cx));
+      cy = hh * 2 >= H ? H / 2 : Math.min(H - hh, Math.max(hh, cy));
     }
-    this.place(ctx, this.cache.get([{ lines, style: st }], 0), cx, cy, s, alpha);
+    const input: AnimInput = {
+      anim,
+      lt: tt - cue.start,
+      left: cue.end - tt,
+      dur: cue.end - cue.start,
+      cueIndex,
+      count: glyphs.length,
+      size: st.sizePx,
+      W,
+      H,
+      kick: f.kick,
+      t,
+      highlight: str(p, "highlight", "#ffd23f"),
+    };
+
+    ctx.save();
+    ctx.globalCompositeOperation = "source-over";
+    ctx.translate(cx, cy);
+    ctx.rotate(bt.rot);
+    ctx.scale(tr.scale * bt.scale, tr.scale * bt.scale);
+
+    // 背景の帯（行・列ごと）
+    if (st.box > 0) {
+      const a = clamp01(Math.min(input.lt / 0.25, input.left / 0.2));
+      const byLine = new Map<number, { x0: number; x1: number; y0: number; y1: number }>();
+      for (const g of glyphs) {
+        const half = vertical ? st.sizePx * 0.65 : g.w / 2;
+        const r = byLine.get(g.line) ?? { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
+        r.x0 = Math.min(r.x0, g.x - half);
+        r.x1 = Math.max(r.x1, g.x + half);
+        r.y0 = Math.min(r.y0, g.y - st.sizePx * 0.62);
+        r.y1 = Math.max(r.y1, g.y + st.sizePx * 0.62);
+        byLine.set(g.line, r);
+      }
+      ctx.globalAlpha = st.box * a;
+      ctx.fillStyle = st.boxColor;
+      const pad = st.sizePx * 0.35;
+      for (const r of byLine.values()) {
+        ctx.beginPath();
+        ctx.roundRect(r.x0 - pad, r.y0, r.x1 - r.x0 + pad * 2, r.y1 - r.y0, st.sizePx * 0.2);
+        ctx.fill();
+      }
+    }
+
+    for (const g of glyphs) {
+      const gs = glyphState(g, input);
+      if (gs.alpha <= 0.01 || gs.scale <= 0.001) continue;
+      const ch = gs.ch ?? g.ch;
+      if (ch.trim() === "") continue;
+      const img = this.glyphs.get(ch, st, gs.color ?? st.color);
+      ctx.save();
+      ctx.translate(g.x + gs.dx, g.y + gs.dy);
+      if (gs.rot) ctx.rotate(gs.rot);
+      if (gs.scale !== 1) ctx.scale(gs.scale, gs.scale);
+      // 色ずれ（グリッチ）: 赤と青をずらして重ねる
+      if (gs.split) {
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = gs.alpha * 0.7;
+        ctx.drawImage(this.glyphs.get(ch, st, "#ff2050"), -img.width / 2 - gs.split, -img.height / 2);
+        ctx.drawImage(this.glyphs.get(ch, st, "#20e0ff"), -img.width / 2 + gs.split, -img.height / 2);
+        ctx.globalCompositeOperation = "source-over";
+      }
+      ctx.globalAlpha = gs.alpha;
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+      ctx.restore();
+    }
+    ctx.restore();
   }
 }
