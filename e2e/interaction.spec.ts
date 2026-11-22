@@ -39,7 +39,8 @@ test("?demo でデモ素材を読み込み、レイヤーをドラッグ・ホ�
   await expect(sel).toContainText("100%");
 
   // プレビューの外（インスペクター）をクリックするとガイドが消え、選択は残る
-  await page.getByTestId("transform-controls").click();
+  // （スライダー等の部品に当たって値が変わらないよう、見出しの文字をクリックする）
+  await page.getByTestId("inspector").locator("h3").first().click();
   await expect(sel).toBeHidden();
   await expect(page.getByTestId("transform-controls")).toBeVisible();
   // レイヤーをクリックすると再表示、何も無い所（画面上端）をクリックすると消える
