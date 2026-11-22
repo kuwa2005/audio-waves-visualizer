@@ -5,6 +5,9 @@
  * 1 フレームの流れ:
  *   時刻 t（再生位置から外挿）→ WASM で t のスペクトル → 事前解析から特徴量 → SceneRenderer で描画
  * 書き出しも同じ Worker・同じ SceneRenderer（別インスタンス）で行うので、プレビューと結果が一致する。
+ *
+ * 再生中だけ毎フレーム描画する。止まっているときは、設定・素材・再生位置が変わったときに 1 回だけ描き直す
+ * （止まっている間に GPU・CPU を使い続けない）。
  */
 import init, { Track } from "../wasm/pkg/awv_core";
 import { absNowMs, STOPPED, transportTime, type TransportState } from "./clock";
@@ -44,6 +47,8 @@ let trackSampleRate = IDLE_SAMPLE_RATE;
 let trackLength = 0;
 
 let lastFrameTs = 0;
+/** 次のフレームの描画を予約済みか */
+let scheduled = false;
 let lastPerfPost = 0;
 let lastT = 0;
 
@@ -110,12 +115,23 @@ const env: RenderEnv = {
   },
 };
 
-function frame(ts: number): void {
-  if (!running) return;
+/** 次のフレームで描画する（予約済みなら何もしない） */
+function requestFrame(): void {
+  if (scheduled || !running) return;
+  scheduled = true;
   raf(frame);
-  if (!ctx || !scene || !preview || !memory || exporting) return;
+}
+
+/** 再生中か（再生中だけ毎フレーム描き続ける） */
+const isLive = () => transport.playing && track !== null;
+
+function frame(ts: number): void {
+  scheduled = false;
+  if (!running || !ctx || !scene || !preview || !memory || exporting) return;
+  const live = isLive();
+  if (live) requestFrame();
   const interval = lastFrameTs ? ts - lastFrameTs : 1000 / 60;
-  lastFrameTs = ts;
+  lastFrameTs = live ? ts : 0;
   const t0 = performance.now();
 
   const t = track ? transportTime(transport, absNowMs()) : ts / 1000;
@@ -130,6 +146,8 @@ function frame(ts: number): void {
   const f = track ? trackFeatures(t) : features;
   preview.render(ctx, scene, images, f, t, dt, env);
 
+  // 止まっているときの 1 回だけの描画は、FPS の計測に含めない
+  if (!live) return;
   perf.push(performance.now() - t0, interval);
   if (ts - lastPerfPost > 500) {
     lastPerfPost = ts;
@@ -206,6 +224,7 @@ async function startExport(msg: Extract<ToWorker, { type: "export" }>): Promise<
     releaseUnusedImages();
     lastFrameTs = 0;
     preview?.reset();
+    requestFrame();
   }
 }
 
@@ -236,7 +255,7 @@ self.onmessage = async (e: MessageEvent<ToWorker>) => {
         }
         post({ type: "ready", wasm, version: ENGINE_VERSION });
         resolveReady();
-        raf(frame);
+        requestFrame();
         break;
       }
       case "scene":
@@ -245,24 +264,35 @@ self.onmessage = async (e: MessageEvent<ToWorker>) => {
         applyCanvasSize();
         preview?.prune(scene);
         releaseUnusedImages();
+        requestFrame();
         break;
-      case "transport":
+      case "transport": {
+        const wasLive = isLive();
         transport = msg.transport;
+        if (isLive() && !wasLive) {
+          // 再生開始: FPS の計測をやり直す
+          lastFrameTs = 0;
+          perf.reset();
+        }
+        requestFrame();
         break;
+      }
       case "loadTrack":
         if (exporting) throw new Error("書き出し中は音声を差し替えられません");
         loadTrack(msg.pcm, msg.sampleRate);
+        requestFrame();
         break;
       case "image":
         images.set(msg.id, msg.bitmap);
         preview?.invalidateBackground();
+        requestFrame();
         break;
       case "setRunning":
         if (msg.running && !running) {
           running = true;
           lastFrameTs = 0;
           perf.reset();
-          raf(frame);
+          requestFrame();
         } else {
           running = msg.running;
         }

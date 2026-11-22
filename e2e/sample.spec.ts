@@ -45,7 +45,7 @@ test("素材を読み込み、解析・再生・比率切替・レイヤー追�
   await expect(page.getByRole("alert")).toHaveCount(0);
 
   // 解析結果（BPM）が出る
-  await expect(page.getByTestId("perf-bpm")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("perf-bpm")).toBeAttached({ timeout: 60_000 });
   const bpm = Number(await page.getByTestId("perf-bpm").textContent());
   expect(bpm).toBeGreaterThan(60);
   expect(bpm).toBeLessThan(200);

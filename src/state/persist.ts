@@ -1,8 +1,9 @@
 /**
  * 設定の保存と復元（ブラウザのローカルストレージ。端末の中だけに保存され、サーバーへは送らない）。
  *
- * 保存するもの: 素材の調整（暗さ・ビートでズーム・背景の倍率と位置・フェードイン・フェードアウト）、
- *               スペアナ・環境演出のレイヤー、エフェクト（種類・設定値・表示・位置と大きさ・順番）
+ * 保存するもの: 画面比率、素材の調整（暗さ・ビートでズーム・背景の倍率と位置・フェードイン・フェードアウト）、
+ *               スペアナ・環境演出・エフェクトの種類ごとの最後の設定値と位置・大きさ（次に追加したときに使う）
+ * 再読み込みしたときのレイヤーは空から始める（レイヤーの一覧そのものは復元しない）
  * 保存しないもの: 音声・画像・字幕などの素材そのもの
  *
  * 読み込み時は中身を検証し、知らない種類は捨て、値は範囲内に収める（壊れたデータでも画面が壊れない）。
@@ -11,6 +12,7 @@ import {
   IDENTITY_TRANSFORM,
   SCALE_MAX,
   SCALE_MIN,
+  type Aspect,
   type BackgroundLayer,
   type EffectLayer,
   type LayerTransform,
@@ -24,7 +26,15 @@ import { defaultParams, type ParamDef } from "../plugins/types";
 export const STORAGE_KEY = "awv.settings.v1";
 const VERSION = 1;
 
+/** 種類ごとの最後の設定値のキー（スペアナ等は "v:ID"、エフェクトは "fx:ID"） */
+export const memoryKey = (kind: "visualizer" | "effect", pluginId: string) => `${kind === "effect" ? "fx" : "v"}:${pluginId}`;
+
 export type SavedSettings = {
+  aspect?: Aspect;
+  /** 種類ごとの最後の設定値 */
+  lastParams?: Record<string, ParamValues>;
+  /** 種類ごとの最後の位置・大きさ（スペアナ・環境演出のみ） */
+  lastTransforms?: Record<string, LayerTransform>;
   background: Pick<BackgroundLayer, "dim" | "zoomPunch" | "scale" | "panX" | "panY" | "fadeIn" | "fadeOut">;
   visualizers: VisualizerLayer[];
   effects: EffectLayer[];
@@ -106,7 +116,27 @@ export function sanitizeSettings(raw: unknown): SavedSettings | null {
     effects.push({ id: uniqueId(e.id, "layer"), kind: "effect", pluginId: meta.id, enabled: e.enabled !== false, params: sanitizeParams(meta.params, e.params) });
   }
 
+  const lastParams: Record<string, ParamValues> = {};
+  if (isObj(raw.lastParams)) {
+    for (const [key, val] of Object.entries(raw.lastParams).slice(0, 128)) {
+      const [kind, id] = key.split(":", 2);
+      const m = kind === "fx" ? findEffectMeta(id ?? "") : kind === "v" ? findMeta(id ?? "") : undefined;
+      if (m) lastParams[key] = sanitizeParams(m.params, val);
+    }
+  }
+  const lastTransforms: Record<string, LayerTransform> = {};
+  if (isObj(raw.lastTransforms)) {
+    for (const [key, val] of Object.entries(raw.lastTransforms).slice(0, 128)) {
+      const [kind, id] = key.split(":", 2);
+      if (kind === "v" && findMeta(id ?? "")) lastTransforms[key] = sanitizeTransform(val);
+    }
+  }
+  const aspect = (["16:9", "9:16", "1:1"] as const).find((a) => a === raw.aspect);
+
   return {
+    ...(aspect ? { aspect } : {}),
+    lastParams,
+    lastTransforms,
     background: {
       dim: numOr(bg.dim, 0.35, 0, 0.9),
       zoomPunch: numOr(bg.zoomPunch, 0.4, -1, 1),
@@ -134,6 +164,9 @@ export function loadSettings(storage: Pick<Storage, "getItem"> | null = safeStor
 export function serializeSettings(s: SavedSettings): string {
   return JSON.stringify({
     version: VERSION,
+    aspect: s.aspect,
+    lastParams: s.lastParams ?? {},
+    lastTransforms: s.lastTransforms ?? {},
     background: {
       dim: s.background.dim,
       zoomPunch: s.background.zoomPunch,
@@ -188,5 +221,44 @@ export function saveAutoDownload(on: boolean, storage: Pick<Storage, "setItem"> 
     storage?.setItem(AUTO_DOWNLOAD_KEY, on ? "1" : "0");
   } catch {
     /* 保存できなくても動作は続ける */
+  }
+}
+
+const THEME_KEY = "awv.theme";
+export type Theme = "dark" | "light";
+
+/** 画面の配色（既定はダーク） */
+export function loadTheme(storage: Pick<Storage, "getItem"> | null = safeStorage()): Theme {
+  try {
+    return storage?.getItem(THEME_KEY) === "light" ? "light" : "dark";
+  } catch {
+    return "dark";
+  }
+}
+
+export function saveTheme(theme: Theme, storage: Pick<Storage, "setItem"> | null = safeStorage()): void {
+  try {
+    storage?.setItem(THEME_KEY, theme);
+  } catch {
+    /* 保存できなくても切り替えは効く */
+  }
+}
+
+const HUD_KEY = "awv.perfOpen";
+
+/** 性能表示（FPS など）を開いているか（既定は閉じる） */
+export function loadPerfOpen(storage: Pick<Storage, "getItem"> | null = safeStorage()): boolean {
+  try {
+    return storage?.getItem(HUD_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function savePerfOpen(open: boolean, storage: Pick<Storage, "setItem"> | null = safeStorage()): void {
+  try {
+    storage?.setItem(HUD_KEY, open ? "1" : "0");
+  } catch {
+    /* 無視 */
   }
 }

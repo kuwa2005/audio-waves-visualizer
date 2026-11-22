@@ -215,3 +215,46 @@ export function wrapVertical(text: string, maxChars: number): string[] {
   }
   return out;
 }
+
+/** 文字の配色プリセット（タイトル・字幕共通。押すと色の項目がまとめて切り替わる） */
+export type TextColorPreset = {
+  id: string;
+  name: string;
+  color: string;
+  outlineColor: string;
+  glow: number;
+  glowColor: string;
+  highlight: string;
+};
+
+export const TEXT_COLOR_PRESETS: TextColorPreset[] = [
+  { id: "classic", name: "定番（白・黒縁）", color: "#ffffff", outlineColor: "#000000", glow: 0, glowColor: "#7cf7ff", highlight: "#ffd23f" },
+  { id: "yellow", name: "黄色・黒縁", color: "#ffe14a", outlineColor: "#1a1a1a", glow: 0, glowColor: "#ffe14a", highlight: "#ff4d6d" },
+  { id: "ink", name: "黒・白縁", color: "#111111", outlineColor: "#ffffff", glow: 0, glowColor: "#ffffff", highlight: "#e11d48" },
+  { id: "neon-cyan", name: "ネオン（シアン）", color: "#e6fdff", outlineColor: "#003a44", glow: 0.7, glowColor: "#22d3ee", highlight: "#ff4fd8" },
+  { id: "neon-pink", name: "ネオン（ピンク）", color: "#fff0fb", outlineColor: "#4a0033", glow: 0.7, glowColor: "#ff3fb4", highlight: "#7cf7ff" },
+  { id: "cyber", name: "サイバー紫", color: "#f3e8ff", outlineColor: "#2e1065", glow: 0.6, glowColor: "#a855f7", highlight: "#22d3ee" },
+  { id: "sunset", name: "夕焼け", color: "#fff4e0", outlineColor: "#7c2d12", glow: 0.4, glowColor: "#fb923c", highlight: "#fde047" },
+  { id: "shu", name: "和（朱）", color: "#fffaf0", outlineColor: "#9f1239", glow: 0, glowColor: "#f43f5e", highlight: "#fbbf24" },
+  { id: "mint", name: "ミント", color: "#effff8", outlineColor: "#064e3b", glow: 0.4, glowColor: "#34d399", highlight: "#fef08a" },
+  { id: "gold", name: "ゴールド", color: "#fde68a", outlineColor: "#422006", glow: 0.5, glowColor: "#f59e0b", highlight: "#ffffff" },
+];
+
+const PRESET_KEYS = ["color", "outlineColor", "glow", "glowColor", "highlight"] as const;
+
+/** プリセットを、その文字レイヤーにある項目だけの変更にする */
+export function textPresetParams(p: TextColorPreset, defs: ParamDef[]): Record<string, string | number> {
+  const keys = new Set(defs.map((d) => d.key));
+  const out: Record<string, string | number> = {};
+  for (const k of PRESET_KEYS) if (keys.has(k)) out[k] = p[k];
+  return out;
+}
+
+/** 今の値に一致するプリセット（無ければ null） */
+export function matchingTextPreset(params: ParamValues, defs: ParamDef[]): string | null {
+  for (const p of TEXT_COLOR_PRESETS) {
+    const want = textPresetParams(p, defs);
+    if (Object.entries(want).every(([k, v]) => (typeof v === "string" ? String(params[k] ?? "").toLowerCase() === v : Math.abs(Number(params[k] ?? -1) - v) < 1e-6))) return p.id;
+  }
+  return null;
+}

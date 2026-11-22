@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
  * 起動確認テスト。ローカル（vite preview）と本番（AWV_URL=https://lil.la/visualizer/）の両方で使う。
  * 注意: ヘッドレス環境は GPU を使わないため、FPS の値は実機の性能を表さない。ここでは動作の有無だけを確認する。
  */
-test("描画エンジンが起動し、WASM が動き、フレームが進む", async ({ page }) => {
+test("描画エンジンが起動し、WASM が動き、止まっている間は描画を休止する", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
@@ -14,8 +14,11 @@ test("描画エンジンが起動し、WASM が動き、フレームが進む", 
   await expect(page.getByTestId("stage-canvas")).toBeVisible();
   await expect(page.getByTestId("perf-wasm")).toHaveText("OK", { timeout: 30_000 });
 
-  // HUD に FPS が出るまで待つ（0.5 秒ごとに更新）
-  await expect.poll(async () => Number(await page.getByTestId("perf-fps").textContent()), { timeout: 10_000 }).toBeGreaterThan(1);
+  // 性能表示はヘッダーに格納（▼で開く）。止まっている間は描画を休止するので「停止中」
+  await expect(page.getByTestId("perf-hud")).toBeHidden();
+  await page.getByTestId("perf-toggle").click();
+  await expect(page.getByTestId("perf-hud")).toBeVisible();
+  await expect(page.getByTestId("perf-fps")).toHaveText("停止中");
 
   // 本番仕様: 起動時に素材は読み込まない
   await page.waitForTimeout(1500);

@@ -18,6 +18,7 @@ export function Timeline() {
   const waveform = useStore((s) => s.waveform);
   const playing = useStore((s) => s.playing);
   const range = useStore((s) => s.scene.range);
+  const theme = useStore((s) => s.theme);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const headRef = useRef<HTMLDivElement>(null);
   const timeRef = useRef<HTMLSpanElement>(null);
@@ -49,7 +50,8 @@ export function Timeline() {
         g.fillRect(x, (h - bh) / 2, 1, bh);
       }
       g.globalAlpha = 0.35;
-      g.fillStyle = "#e8eaf2";
+      // ビート位置は文字色で（ライト・ダークのどちらでも見えるように）
+      g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--color-ink").trim() || "#e8eaf2";
       for (let i = 0; i < track.beats.length; i++) {
         const x = (track.beats[i] / track.duration) * w;
         g.fillRect(x, i % 4 === 0 ? 0 : h * 0.75, 1, i % 4 === 0 ? h * 0.18 : h * 0.25);
@@ -59,28 +61,43 @@ export function Timeline() {
     const ro = new ResizeObserver(draw);
     ro.observe(c);
     return () => ro.disconnect();
-  }, [waveform, track]);
+  }, [waveform, track, theme]);
 
-  // 再生位置の更新
+  /** 再生位置の線と時刻表示を今の位置に合わせる */
+  const updateHead = () => {
+    const t = currentTime();
+    if (headRef.current) headRef.current.style.transform = `translateX(${duration > 0 ? (t / duration) * 100 : 0}cqw)`;
+    if (timeRef.current) timeRef.current.textContent = `${formatTime(t)} / ${formatTime(duration)}`;
+  };
+
+  // 再生位置の更新（毎フレーム更新するのは再生中だけ。止まっているときはシークしたときに更新する）
   useEffect(() => {
+    updateHead();
+    if (!playing) return;
     let id = 0;
     const tick = () => {
-      const t = currentTime();
-      if (headRef.current && duration > 0) headRef.current.style.transform = `translateX(${(t / duration) * 100}cqw)`;
-      if (timeRef.current) timeRef.current.textContent = `${formatTime(t)} / ${formatTime(duration)}`;
+      updateHead();
       id = requestAnimationFrame(tick);
     };
     id = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(id);
-  }, [duration]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [duration, playing]);
 
-  // スペースキーで再生／一時停止
+  const updateRef = useRef(updateHead);
+  updateRef.current = updateHead;
+
+  // スペースキーで再生／一時停止、Home キーで先頭へ
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
-      if (e.code === "Space" && tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "SELECT" && tag !== "BUTTON") {
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (e.code === "Space" && tag !== "BUTTON") {
         e.preventDefault();
         void togglePlay();
+      } else if (e.code === "Home" && useStore.getState().track) {
+        e.preventDefault();
+        void seek(0).then(updateRef.current);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -90,21 +107,36 @@ export function Timeline() {
   const seekFromEvent = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!duration) return;
     const r = e.currentTarget.getBoundingClientRect();
-    void seek(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * duration);
+    void seek(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * duration).then(updateHead);
   };
 
   return (
     <div className="flex h-full items-center gap-4">
-      <button
-        data-testid="play-button"
-        onClick={() => void togglePlay()}
-        disabled={!track}
-        className="accent-gradient flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-lg text-white shadow-lg transition disabled:opacity-30"
-        aria-label={playing ? "一時停止" : "再生"}
-        title="再生／一時停止（Space）"
-      >
-        {playing ? "❚❚" : "▶"}
-      </button>
+      <div className="flex shrink-0 items-center gap-2">
+        <button
+          data-testid="seek-start"
+          onClick={() => void seek(0).then(updateHead)}
+          disabled={!track}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-raised text-ink transition hover:border-accent-from disabled:opacity-30"
+          aria-label="先頭へ戻る"
+          title="先頭へ戻る（Home）"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
+            <rect x="5" y="5" width="2.6" height="14" rx="1" />
+            <path d="M19 5.8v12.4a1 1 0 0 1-1.5.86L8.6 13.3a1.5 1.5 0 0 1 0-2.6l8.9-5.76A1 1 0 0 1 19 5.8z" />
+          </svg>
+        </button>
+        <button
+          data-testid="play-button"
+          onClick={() => void togglePlay()}
+          disabled={!track}
+          className="accent-gradient flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-lg text-white shadow-lg transition disabled:opacity-30"
+          aria-label={playing ? "一時停止" : "再生"}
+          title="再生／一時停止（Space）"
+        >
+          {playing ? "❚❚" : "▶"}
+        </button>
+      </div>
       <span ref={timeRef} data-testid="time-display" className="w-24 shrink-0 font-mono text-xs text-ink-muted">
         0:00 / 0:00
       </span>
@@ -118,19 +150,24 @@ export function Timeline() {
         onPointerMove={(e) => e.buttons === 1 && seekFromEvent(e)}
       >
         <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
-        {track && (range.start > 0 || range.length !== null) && (() => {
-          const r = resolveRange(range, track.duration);
-          return (
-            <div
-              data-testid="timeline-range"
-              className="pointer-events-none absolute inset-y-0 border-x-2 border-accent-to bg-accent-to/15"
-              style={{ left: `${(r.start / track.duration) * 100}%`, width: `${((r.end - r.start) / track.duration) * 100}%` }}
-              title="書き出す範囲"
-            />
-          );
-        })()}
+        {track &&
+          (range.start > 0 || range.length !== null) &&
+          (() => {
+            const r = resolveRange(range, track.duration);
+            return (
+              <div
+                data-testid="timeline-range"
+                className="pointer-events-none absolute inset-y-0 border-x-2 border-accent-to bg-accent-to/15"
+                style={{
+                  left: `${(r.start / track.duration) * 100}%`,
+                  width: `${((r.end - r.start) / track.duration) * 100}%`,
+                }}
+                title="書き出す範囲"
+              />
+            );
+          })()}
         {!track && <div className="absolute inset-0 flex items-center justify-center text-xs text-ink-muted">音声を読み込むと波形とビート位置が表示されます</div>}
-        <div ref={headRef} className="pointer-events-none absolute inset-y-0 left-0 w-0.5 bg-white shadow-[0_0_8px_white]" />
+        <div ref={headRef} className="pointer-events-none absolute inset-y-0 left-0 w-0.5 bg-ink shadow-[0_0_8px_var(--color-ink)]" />
       </div>
     </div>
   );

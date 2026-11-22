@@ -9,10 +9,8 @@ test("字幕の表示の動き（全種類・縦書き）", async ({ page }) => 
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("?demo");
-  await expect(page.getByTestId("perf-bpm")).toBeVisible({ timeout: 60_000 });
-  // 背景のスペアナを外し、字幕だけを見る
-  await page.getByTestId("step-visual").click();
-  await page.getByTestId("add-neon-bars").click();
+  await expect(page.getByTestId("perf-bpm")).toBeAttached({ timeout: 60_000 });
+  // レイヤーは空から始まるので、字幕だけが見える
   await page.getByTestId("step-text").click();
   await page.getByTestId("subs-style").click();
   const inspector = page.getByTestId("inspector");

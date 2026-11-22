@@ -10,13 +10,10 @@ function luma(file: string, x: number, y: number, w: number, h: number): number 
 test("背景の倍率と位置を変えられる", async ({ page }) => {
   test.setTimeout(120_000);
   await page.goto("?demo");
-  await expect(page.getByTestId("perf-bpm")).toBeVisible({ timeout: 60_000 });
-  // 背景だけを見るため、スペアナを外し、暗さとビートズームを 0 にする
+  await expect(page.getByTestId("perf-bpm")).toBeAttached({ timeout: 60_000 });
+  // 背景だけを見るため（レイヤーは空から始まる）、暗さとビートズームを 0 にする
   await page.locator("label", { hasText: "暗さ" }).locator("input").fill("0");
   await page.getByTestId("zoom-punch").fill("0");
-  await page.getByTestId("step-visual").click();
-  await page.getByTestId("add-neon-bars").click();
-  await page.getByTestId("step-media").click();
   const stage = page.getByTestId("stage");
 
   const shot = async (name: string) => {

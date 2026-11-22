@@ -70,6 +70,8 @@ export type VisualizerLayer = {
   opacity: number;
   transform: LayerTransform;
   params: ParamValues;
+  /** 固定中: 削除できず、プレビュー上でクリック・移動・拡大縮小できない */
+  locked?: boolean;
 };
 
 /** タイトル（文字は params.title / params.subtitle） */
@@ -101,6 +103,8 @@ export type EffectLayer = {
   pluginId: string;
   enabled: boolean;
   params: ParamValues;
+  /** 固定中: 削除できない */
+  locked?: boolean;
 };
 
 /** 矩形（出力ピクセル座標） */

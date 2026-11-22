@@ -3,6 +3,7 @@ import { loadFiles } from "../app/controller";
 import type { Aspect } from "../engine/scene";
 import { useStore, type Step } from "../state/store";
 import { ExportPanel } from "./ExportPanel";
+import { BulbIcon, Logo } from "./Logo";
 import { Inspector } from "./Inspector";
 import { MediaPanel } from "./MediaPanel";
 import { PerfHud } from "./PerfHud";
@@ -41,6 +42,8 @@ export function App() {
   const setAspect = useStore((s) => s.setAspect);
   const error = useStore((s) => s.error);
   const loading = useStore((s) => s.loading);
+  const theme = useStore((s) => s.theme);
+  const setTheme = useStore((s) => s.setTheme);
   const [dragging, setDragging] = useState(false);
 
   // ウィンドウの外へ出た・ドラッグを取り消した・どこかでドロップした、のいずれでも「ドロップ待ち」表示を解除する
@@ -63,24 +66,28 @@ export function App() {
     <div
       className="grid min-h-full grid-rows-[56px_1fr_auto] gap-px bg-line lg:h-full"
       onDragOver={(e) => {
+        // レイヤーの並べ替え（ファイル以外のドラッグ）では「ドロップ待ち」表示を出さない
+        if (!e.dataTransfer.types.includes("Files")) return;
         e.preventDefault();
         setDragging(true);
       }}
       onDragLeave={(e) => e.currentTarget === e.target && setDragging(false)}
       onDrop={(e) => {
+        if (!e.dataTransfer.types.includes("Files")) return;
         e.preventDefault();
         setDragging(false);
         void loadFiles(e.dataTransfer.files);
       }}
     >
-      <header className="flex items-center gap-3 bg-surface px-4">
-        <div className="accent-gradient h-7 w-7 shrink-0 rounded-lg" aria-hidden />
-        <h1 className="truncate text-sm font-semibold tracking-wide">Audio Waves Visualizer</h1>
-        <span className="hidden rounded-md bg-raised px-2 py-0.5 text-xs text-ink-muted sm:inline">v0.5 プレビュー版</span>
-        <a href={CLASSIC_URL} data-testid="classic-link" className="classic-link ml-2 shrink-0 rounded-md px-2.5 py-1 text-xs font-bold">
+      <header className="flex min-w-0 items-center gap-2 bg-surface px-3 sm:gap-3 sm:px-4">
+        <Logo className="h-8 w-8 shrink-0" />
+        <h1 className="hidden truncate text-sm font-semibold tracking-wide sm:block">Audio Waves Visualizer</h1>
+        <span className="hidden rounded-md bg-raised px-2 py-0.5 text-xs text-ink-muted sm:inline">v0.6 プレビュー版</span>
+        <a href={CLASSIC_URL} data-testid="classic-link" className="classic-link shrink-0 rounded-md px-2 py-1 text-[11px] font-bold sm:ml-2 sm:px-2.5 sm:text-xs">
           → 旧版はこちら
         </a>
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2 sm:gap-3">
+          <PerfHud />
           <div className="flex rounded-lg bg-raised p-0.5" role="radiogroup" aria-label="画面比率">
             {ASPECTS.map((a) => (
               <button
@@ -89,7 +96,7 @@ export function App() {
                 aria-checked={aspect === a}
                 data-testid={`aspect-${a}`}
                 onClick={() => setAspect(a)}
-                className={`rounded-md px-2.5 py-1 font-mono text-xs transition ${aspect === a ? "bg-surface text-ink shadow" : "text-ink-muted hover:text-ink"}`}
+                className={`rounded-md px-1.5 py-1 font-mono text-[11px] transition sm:px-2.5 sm:text-xs ${aspect === a ? "bg-surface text-ink shadow" : "text-ink-muted hover:text-ink"}`}
               >
                 {a}
               </button>
@@ -101,6 +108,16 @@ export function App() {
             className="accent-gradient hidden rounded-lg px-4 py-1.5 text-sm font-semibold text-white shadow-lg transition hover:brightness-110 sm:block"
           >
             書き出し
+          </button>
+          <button
+            data-testid="theme-toggle"
+            aria-pressed={theme === "light"}
+            onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition ${theme === "light" ? "bg-amber-100 text-amber-700 shadow-[0_0_14px_rgb(251_191_36/0.7)]" : "bg-raised text-ink-muted hover:text-ink"}`}
+            title={theme === "light" ? "消灯してダークモードにする" : "点灯してライトモードにする"}
+            aria-label={theme === "light" ? "ダークモードに切り替え" : "ライトモードに切り替え"}
+          >
+            <BulbIcon on={theme === "light"} />
           </button>
         </div>
       </header>
@@ -128,7 +145,6 @@ export function App() {
 
         <section className="relative order-first min-h-[40vh] bg-base p-4 lg:order-none lg:min-h-0">
           <Stage />
-          <PerfHud />
           {loading && <div className="glass absolute left-6 top-6 rounded-lg px-3 py-2 text-sm">{loading}</div>}
           {error && (
             <div role="alert" className="absolute bottom-6 left-6 right-6 flex items-start gap-3 rounded-lg border border-bad/40 bg-bad/10 px-4 py-2 text-sm text-bad">

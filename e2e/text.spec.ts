@@ -7,7 +7,7 @@ test("字幕とタイトルを表示・調整・移動できる", async ({ page 
   page.on("pageerror", (e) => errors.push(e.message));
 
   await page.goto("?demo"); // デモ素材を読み込む
-  await expect(page.getByTestId("perf-bpm")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("perf-bpm")).toBeAttached({ timeout: 60_000 });
   await page.getByTestId("step-text").click();
   await expect(page.getByTestId("subs-info")).toContainText("件の字幕");
 

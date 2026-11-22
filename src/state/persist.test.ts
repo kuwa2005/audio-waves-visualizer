@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadAutoDownload, loadSettings, sanitizeSettings, saveAutoDownload, saveSettings, serializeSettings, STORAGE_KEY } from "./persist";
+import { loadAutoDownload, loadSettings, loadTheme, sanitizeSettings, saveAutoDownload, saveSettings, saveTheme, serializeSettings, STORAGE_KEY } from "./persist";
 
 const memory = () => {
   const m = new Map<string, string>();
@@ -79,5 +79,39 @@ describe("自動ダウンロードの設定", () => {
     expect(loadAutoDownload(store)).toBe(false);
     saveAutoDownload(true, store);
     expect(loadAutoDownload(store)).toBe(true);
+  });
+});
+
+describe("画面比率・種類ごとの設定値・配色", () => {
+  it("round-trips aspect and per-plugin remembered params, dropping unknown kinds", () => {
+    const store = memory();
+    saveSettings(
+      {
+        aspect: "9:16",
+        lastParams: { "v:neon-bars": { bars: 48 }, "fx:bloom": { strength: 99 }, "v:nope": { a: 1 }, "x:neon-bars": {} },
+        background: { dim: 0.3, zoomPunch: 0, scale: 1, panX: 0, panY: 0, fadeIn: 0, fadeOut: 0 },
+        visualizers: [],
+        effects: [],
+      },
+      store,
+    );
+    const s = loadSettings(store)!;
+    expect(s.aspect).toBe("9:16");
+    expect(Object.keys(s.lastParams!).sort()).toEqual(["fx:bloom", "v:neon-bars"]);
+    expect(s.lastParams!["v:neon-bars"].bars).toBe(48);
+    // 範囲外は丸める
+    expect(s.lastParams!["fx:bloom"].strength).toBeLessThan(99);
+  });
+
+  it("ignores an unknown aspect", () => {
+    const s = sanitizeSettings({ version: 1, aspect: "4:3" })!;
+    expect(s.aspect).toBeUndefined();
+  });
+
+  it("theme defaults to dark and remembers light", () => {
+    const store = memory();
+    expect(loadTheme(store)).toBe("dark");
+    saveTheme("light", store);
+    expect(loadTheme(store)).toBe("light");
   });
 });

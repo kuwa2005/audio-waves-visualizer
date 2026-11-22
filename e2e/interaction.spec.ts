@@ -7,9 +7,11 @@ test("?demo でデモ素材を読み込み、レイヤーをドラッグ・ホ�
   page.on("pageerror", (e) => errors.push(e.message));
 
   await page.goto("?demo"); // デモ素材を読み込む
-  await expect(page.getByTestId("perf-bpm")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("perf-bpm")).toBeAttached({ timeout: 60_000 });
   await expect(page.getByText("持ち帰るとは行ったけど（デモ）.m4a")).toBeVisible();
 
+  await page.getByTestId("step-visual").click();
+  await page.getByTestId("add-neon-bars").click();
   const stage = page.getByTestId("stage");
   const box = (await stage.boundingBox())!;
   // ネオンバー（画面下部）をつかんで上へドラッグ

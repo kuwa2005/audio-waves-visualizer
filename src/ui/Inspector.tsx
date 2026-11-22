@@ -1,6 +1,6 @@
 import { findMeta } from "../plugins/catalog";
 import { findEffectMeta } from "../plugins/effectCatalog";
-import { SUBTITLE_PARAMS, TITLE_PARAMS } from "../text/textCatalog";
+import { matchingTextPreset, SUBTITLE_PARAMS, TEXT_COLOR_PRESETS, textPresetParams, TITLE_PARAMS } from "../text/textCatalog";
 import { COLOR_PRESETS, matchingPreset, presetParams } from "../plugins/palettes";
 import type { ParamDef } from "../plugins/types";
 import { IDENTITY_TRANSFORM, SCALE_MAX, SCALE_MIN, type LayerTransform, type ParamValue } from "../engine/scene";
@@ -62,9 +62,9 @@ function Field({ def, value, onChange }: { def: ParamDef; value: ParamValue | un
     }
     case "select":
       return (
-        <label className="flex items-center justify-between text-sm">
-          {def.label}
-          <select value={typeof value === "string" ? value : def.default} onChange={(e) => onChange(e.target.value)} className="rounded border border-line bg-raised px-2 py-1">
+        <label className="flex items-center justify-between gap-2 text-sm">
+          <span className="shrink-0 whitespace-nowrap">{def.label}</span>
+          <select value={typeof value === "string" ? value : def.default} onChange={(e) => onChange(e.target.value)} className="min-w-0 max-w-[65%] truncate rounded border border-line bg-raised px-2 py-1">
             {def.options.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
@@ -112,6 +112,41 @@ function PalettePicker({ layerId, keys, params }: { layerId: string; keys: strin
   );
 }
 
+/** 文字の配色プリセット: 見本の文字で、文字色・縁取り・光彩・カラオケの色をまとめて切り替える */
+function TextPalettePicker({ id, defs, params }: { id: "title" | "subtitles"; defs: ParamDef[]; params: Record<string, ParamValue> }) {
+  const setTextParams = useStore((s) => s.setTextParams);
+  const current = matchingTextPreset(params, defs);
+  return (
+    <section className="space-y-2 rounded-xl border border-line p-3" data-testid="text-palette-picker">
+      <h4 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">配色プリセット</h4>
+      <div className="grid grid-cols-5 gap-1.5">
+        {TEXT_COLOR_PRESETS.map((p) => {
+          const on = current === p.id;
+          const o = p.outlineColor;
+          const shadow = [`-1px -1px 0 ${o}`, `1px -1px 0 ${o}`, `-1px 1px 0 ${o}`, `1px 1px 0 ${o}`, ...(p.glow > 0 ? [`0 0 6px ${p.glowColor}`, `0 0 10px ${p.glowColor}`] : [])].join(",");
+          return (
+            <button
+              key={p.id}
+              data-testid={`text-palette-${p.id}`}
+              aria-pressed={on}
+              title={p.name}
+              aria-label={`文字の配色: ${p.name}`}
+              onClick={() => setTextParams(id, textPresetParams(p, defs))}
+              className={`flex h-8 items-center justify-center rounded-md border bg-[#3a3f4d] text-sm font-bold transition ${on ? "border-accent-to ring-2 ring-accent-to/60" : "border-line hover:border-ink-muted"}`}
+              style={{ color: p.color, textShadow: shadow }}
+            >
+              あ<span style={{ color: id === "subtitles" ? p.highlight : p.color }}>A</span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-[11px] text-ink-muted" data-testid="text-palette-name">
+        {current ? `選択中: ${TEXT_COLOR_PRESETS.find((p) => p.id === current)!.name}` : "下の色の項目で個別に変更することもできます"}
+      </p>
+    </section>
+  );
+}
+
 /** 位置・大きさ（ビジュアライザー・タイトル・字幕で共通） */
 function TransformControls({ id, transform }: { id: string; transform: LayerTransform }) {
   const setTransform = useStore((s) => s.setTransform);
@@ -140,6 +175,27 @@ function TransformControls({ id, transform }: { id: string; transform: LayerTran
   );
 }
 
+/** 見出し（名前・説明）と「初期値に戻す」ボタン */
+function Header({ layerId, title, description }: { layerId: string; title: string; description: string }) {
+  const resetLayerParams = useStore((s) => s.resetLayerParams);
+  return (
+    <div>
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="text-[15px] font-semibold text-ink">{title}</h3>
+        <button
+          data-testid="params-reset"
+          onClick={() => resetLayerParams(layerId)}
+          className="shrink-0 rounded-md border border-line px-2 py-0.5 text-xs text-ink-muted hover:border-accent-from hover:text-ink"
+          title="このレイヤーの設定値を初期値に戻します（位置・大きさはそのまま）"
+        >
+          ↺ 初期値に戻す
+        </button>
+      </div>
+      <p className="text-xs text-ink-muted">{description}</p>
+    </div>
+  );
+}
+
 /** 選択中のレイヤーの設定。項目はプラグインのパラメータ定義から自動生成する */
 export function Inspector() {
   const selectedId = useStore((s) => s.selectedLayerId);
@@ -155,10 +211,12 @@ export function Inspector() {
     const defs = textLayer.id === "title" ? TITLE_PARAMS : SUBTITLE_PARAMS;
     return (
       <div className="space-y-4" data-testid="inspector">
-        <div>
-          <h3 className="text-[15px] font-semibold text-ink">{textLayer.id === "title" ? "タイトル" : "字幕"}</h3>
-          <p className="text-xs text-ink-muted">文字はいちばん手前に表示されます（エフェクトの影響を受けません）。</p>
-        </div>
+        <Header
+          layerId={textLayer.id}
+          title={textLayer.id === "title" ? "タイトル" : "字幕"}
+          description="文字はいちばん手前に表示されます（エフェクトの影響を受けません）。初期値に戻しても、入力した文字はそのままです。"
+        />
+        <TextPalettePicker id={textLayer.id} defs={defs} params={textLayer.params} />
         <TransformControls id={textLayer.id} transform={textLayer.transform} />
         {defs.map((def) => (
           <Field key={def.key} def={def} value={textLayer.params[def.key]} onChange={(v) => setTextParam(textLayer.id, def.key, v)} />
@@ -172,10 +230,7 @@ export function Inspector() {
     if (!em) return null;
     return (
       <div className="space-y-4" data-testid="inspector">
-        <div>
-          <h3 className="text-[15px] font-semibold text-ink">✦ {em.name}</h3>
-          <p className="text-xs text-ink-muted">{em.description}</p>
-        </div>
+        <Header layerId={effect.id} title={`✦ ${em.name}`} description={em.description} />
         {em.params.map((def) => (
           <Field key={def.key} def={def} value={effect.params[def.key]} onChange={(v) => setEffectParam(effect.id, def.key, v)} />
         ))}
@@ -188,10 +243,12 @@ export function Inspector() {
   }
   return (
     <div className="space-y-4" data-testid="inspector">
-      <div>
-        <h3 className="text-[15px] font-semibold text-ink">{meta.name}</h3>
-        <p className="text-xs text-ink-muted">{meta.description}</p>
-      </div>
+      <Header layerId={layer.id} title={meta.name} description={meta.description} />
+      {layer.locked && (
+        <p data-testid="locked-note" className="rounded-lg bg-warn/10 px-3 py-1.5 text-xs text-warn">
+          🔒 固定中: 削除と、プレビュー上でのクリック・移動・拡大縮小はできません（ここでの調整はできます）。
+        </p>
+      )}
       {meta.paletteKeys && <PalettePicker layerId={layer.id} keys={meta.paletteKeys} params={layer.params} />}
       <TransformControls id={layer.id} transform={layer.transform} />
       {meta.params.map((def) => (

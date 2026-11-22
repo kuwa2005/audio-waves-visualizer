@@ -21,7 +21,7 @@ test("スライダーをダブルクリックすると初期値に戻る", async
 
   // インスペクター（ネオンバーの本数と、位置・大きさ）
   await page.getByTestId("step-visual").click();
-  await page.getByTestId("layer-list").getByRole("button", { name: "ネオンバー" }).click();
+  await page.getByTestId("add-neon-bars").click();
   const inspector = page.getByTestId("inspector");
   const bars = inspector.locator("label", { hasText: "本数" }).locator("input");
   await bars.fill("40");

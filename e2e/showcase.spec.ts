@@ -14,16 +14,14 @@ test("全ビジュアライザー・全エフェクトがエラーなく描画�
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
 
   await page.goto("?demo"); // デモ素材を読み込む
-  await expect(page.getByTestId("perf-bpm")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("perf-bpm")).toBeAttached({ timeout: 60_000 });
   const tl = (await page.getByTestId("timeline").boundingBox())!;
   await page.mouse.click(tl.x + tl.width * 0.42, tl.y + tl.height / 2);
   await page.getByTestId("play-button").click();
   await page.getByTestId("step-visual").click();
 
-  // 既定のネオンバーを外す（ギャラリーのカードをもう一度押すと外れる）
+  // 起動直後のレイヤーは空
   const layerList = page.getByTestId("layer-list");
-  await expect(page.getByTestId("add-neon-bars")).toHaveAttribute("aria-pressed", "true");
-  await page.getByTestId("add-neon-bars").click();
   await expect(layerList.locator("li")).toHaveCount(0);
 
   for (const meta of CATALOG) {
