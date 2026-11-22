@@ -12,22 +12,22 @@ export function PerfHud() {
   return (
     <div
       data-testid="perf-hud"
-      className="glass pointer-events-none absolute right-3 top-3 rounded-lg border border-line px-3 py-2 font-mono text-xs leading-5"
+      className="glass pointer-events-none absolute right-3 top-3 rounded-lg border border-line px-2 py-1 font-mono text-[10px] leading-4 sm:px-3 sm:py-2 sm:text-xs sm:leading-5"
     >
       <div>
         FPS <span data-testid="perf-fps" className={color}>{perf ? perf.fps.toFixed(1) : "--"}</span>
       </div>
-      <div>
+      <div className="hidden sm:block">
         描画 p50/p95 <span className={color}>{perf ? `${perf.renderP50.toFixed(2)} / ${p95.toFixed(2)} ms` : "--"}</span>
       </div>
-      <div>
+      <div className="hidden sm:block">
         コマ落ち <span data-testid="perf-dropped">{perf?.dropped ?? "--"}</span>
       </div>
-      <div>
+      <div className="hidden sm:block">
         WASM <span data-testid="perf-wasm">{wasm === null ? "読込中" : wasm ? "OK" : "失敗"}</span>
       </div>
       {track && (
-        <div>
+        <div className="hidden sm:block">
           BPM <span data-testid="perf-bpm">{track.bpm.toFixed(1)}</span> / 解析 {track.analyzeMs.toFixed(0)} ms
         </div>
       )}

@@ -61,7 +61,7 @@ export function App() {
 
   return (
     <div
-      className="grid h-full grid-rows-[56px_1fr_auto] gap-px bg-line"
+      className="grid min-h-full grid-rows-[56px_1fr_auto] gap-px bg-line lg:h-full"
       onDragOver={(e) => {
         e.preventDefault();
         setDragging(true);
@@ -76,7 +76,7 @@ export function App() {
       <header className="flex items-center gap-3 bg-surface px-4">
         <div className="accent-gradient h-7 w-7 shrink-0 rounded-lg" aria-hidden />
         <h1 className="truncate text-sm font-semibold tracking-wide">Audio Waves Visualizer</h1>
-        <span className="hidden rounded-md bg-raised px-2 py-0.5 text-xs text-ink-muted sm:inline">v0.4 プレビュー版</span>
+        <span className="hidden rounded-md bg-raised px-2 py-0.5 text-xs text-ink-muted sm:inline">v0.5 プレビュー版</span>
         <a href={CLASSIC_URL} data-testid="classic-link" className="classic-link ml-2 shrink-0 rounded-md px-2.5 py-1 text-xs font-bold">
           → 旧版はこちら
         </a>
@@ -105,8 +105,8 @@ export function App() {
         </div>
       </header>
 
-      <main className="grid min-h-0 grid-cols-1 gap-px lg:grid-cols-[320px_1fr_300px]">
-        <div className="flex min-h-0 flex-col bg-surface lg:order-none">
+      <main className="grid grid-cols-1 gap-px lg:min-h-0 lg:grid-cols-[320px_1fr_300px]">
+        <div className="flex flex-col bg-surface lg:order-none lg:min-h-0">
           <nav className="grid grid-cols-4 gap-1 border-b border-line p-2" aria-label="作業ステップ">
             {STEPS.map((s, i) => (
               <button
@@ -121,7 +121,7 @@ export function App() {
               </button>
             ))}
           </nav>
-          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <div className="p-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
             <StepContent step={step} />
           </div>
         </div>
@@ -145,13 +145,13 @@ export function App() {
           )}
         </section>
 
-        <aside className="min-h-0 overflow-y-auto bg-surface p-4" aria-label="インスペクター">
+        <aside className="bg-surface p-4 lg:min-h-0 lg:overflow-y-auto" aria-label="インスペクター">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">インスペクター</h2>
           <Inspector />
         </aside>
       </main>
 
-      <footer className="bg-surface px-4 py-3" aria-label="タイムライン">
+      <footer className="sticky bottom-0 z-10 bg-surface px-4 py-3 lg:static" aria-label="タイムライン">
         <Timeline />
       </footer>
     </div>
