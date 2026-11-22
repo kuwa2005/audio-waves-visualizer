@@ -12,3 +12,6 @@ test-results/
 playwright-report/
 
 public/ffmpeg/
+
+# 引継ぎ資料（社内向けの情報を含むため公開リポジトリに入れない）
+引継ぎ資料.md
