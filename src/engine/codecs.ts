@@ -16,7 +16,7 @@ function avcCodec(width: number, height: number, fps: number): string {
  * 映像エンコーダーを選ぶ。各コーデックで GPU（ハードウェア）エンコードを優先し、
  * 使えなければソフトウェア（CPU）で書き出す。label に「GPU」「CPU」を付けて画面に表示する。
  */
-export async function pickVideo(width: number, height: number, fps: number, bitrate: number): Promise<VideoChoice> {
+export async function pickVideo(width: number, height: number, fps: number, bitrate: number, softwareOnly = false): Promise<VideoChoice> {
   const base = { width, height, bitrate, framerate: fps, latencyMode: "quality" as const };
   const codecs: { codec: string; mux: VideoChoice["mux"]; name: string; extra?: Partial<VideoEncoderConfig> }[] = [
     { codec: avcCodec(width, height, fps), mux: "avc", name: "H.264", extra: { avc: { format: "avc" } } },
@@ -24,7 +24,7 @@ export async function pickVideo(width: number, height: number, fps: number, bitr
     { codec: "av01.0.09M.08", mux: "av1", name: "AV1" },
   ];
   for (const c of codecs) {
-    for (const hw of ["prefer-hardware", "prefer-software"] as const) {
+    for (const hw of softwareOnly ? (["prefer-software"] as const) : (["prefer-hardware", "prefer-software"] as const)) {
       const config: VideoEncoderConfig = { ...base, ...c.extra, codec: c.codec, hardwareAcceleration: hw };
       try {
         if ((await VideoEncoder.isConfigSupported(config)).supported) {

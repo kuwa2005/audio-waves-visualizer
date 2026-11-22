@@ -406,3 +406,16 @@ describe("背景の倍率とビートでズーム", () => {
     }
   });
 });
+
+import { compensateAacPriming, FFMPEG_AAC_PRIMING } from "../app/controller";
+
+describe("AAC 互換モードの頭合わせ", () => {
+  it("shifts input earlier by the encoder priming and keeps the length", () => {
+    const n = FFMPEG_AAC_PRIMING + 10;
+    const src = Float32Array.from({ length: n }, (_, i) => i);
+    const [out] = compensateAacPriming([src]);
+    expect(out.length).toBe(n);
+    expect(out[0]).toBe(FFMPEG_AAC_PRIMING); // 1024 サンプル先の音が先頭に来る
+    expect(out[n - 1]).toBe(0); // 末尾は無音で埋める
+  });
+});

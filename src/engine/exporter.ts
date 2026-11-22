@@ -53,7 +53,23 @@ export function resampleLinear(src: Float32Array, from: number, to: number): Flo
 
 const yieldToEvents = () => new Promise<void>((r) => setTimeout(r, 0));
 
+/** GPU エンコーダーが途中で失敗したことを表す（CPU でやり直す合図） */
+class HardwareEncodeFailed extends Error {}
+
+/**
+ * 書き出し。GPU（ハードウェア）エンコーダーが途中でエラーになった場合は、CPU で最初からやり直す。
+ */
 export async function runExport(job: ExportJob): Promise<ExportResult> {
+  try {
+    return await runExportOnce(job, false);
+  } catch (e) {
+    if (!(e instanceof HardwareEncodeFailed) || job.isCancelled()) throw e instanceof HardwareEncodeFailed ? e.cause ?? e : e;
+    console.warn("GPU encoder failed, retrying with CPU", e.cause);
+    return runExportOnce(job, true);
+  }
+}
+
+async function runExportOnce(job: ExportJob, softwareOnly: boolean): Promise<ExportResult> {
   const t0 = performance.now();
   const { scene, settings } = job;
   const { width, height } = OUTPUT_SIZE[scene.aspect];
@@ -62,7 +78,12 @@ export async function runExport(job: ExportJob): Promise<ExportResult> {
   if (total <= 0) throw new Error("書き出し範囲が空です");
   job.onProgress({ phase: "preparing", frame: 0, totalFrames: total, speed: 0, elapsedSec: 0 });
 
-  const video = await pickVideo(width, height, fps, settings.videoBitrate);
+  const video = await pickVideo(width, height, fps, settings.videoBitrate, softwareOnly);
+  /** エンコーダーのエラーを投げる（GPU の失敗なら CPU でやり直せるよう印を付ける） */
+  const fail = (err: unknown): never => {
+    if (video.hardware) throw new HardwareEncodeFailed("GPU encoder failed", { cause: err });
+    throw err;
+  };
   const pre = job.aac;
   const audio = pre ? null : await pickAudio(job.audio.sampleRate, job.audio.channels.length);
   const audioRate = pre ? pre.sampleRate : audio!.config.sampleRate;
@@ -89,9 +110,11 @@ export async function runExport(job: ExportJob): Promise<ExportResult> {
   });
   if (audio) aenc.configure(audio.config);
 
+  let renderer: SceneRenderer | null = null;
   const close = () => {
     if (venc.state !== "closed") venc.close();
     if (aenc.state !== "closed") aenc.close();
+    renderer?.dispose(); // 書き出し用に作ったパーティクル等の WASM 資源を解放
   };
 
   try {
@@ -144,17 +167,22 @@ export async function runExport(job: ExportJob): Promise<ExportResult> {
     // ---- 映像 ----
     const canvas = new OffscreenCanvas(width, height);
     const ctx = canvas.getContext("2d", { alpha: false }) as OffscreenCanvasRenderingContext2D;
-    const renderer = new SceneRenderer(job.sprites);
+    renderer = new SceneRenderer(job.sprites);
     const frameUs = 1e6 / fps;
     const keyEvery = fps * 2;
     let lastReport = 0;
     for (let i = 0; i < total; i++) {
       if (job.isCancelled()) throw new ExportCancelled();
-      if (encodeError) throw encodeError;
+      if (encodeError) fail(encodeError);
       const t = settings.start + i / fps;
       renderer.render(ctx, scene, job.images, job.features(t), t, i === 0 ? 0 : 1 / fps, job.env);
       const vf = new VideoFrame(canvas, { timestamp: Math.round(i * frameUs), duration: Math.round(frameUs) });
-      venc.encode(vf, { keyFrame: i % keyEvery === 0 });
+      try {
+        venc.encode(vf, { keyFrame: i % keyEvery === 0 });
+      } catch (e) {
+        vf.close();
+        fail(encodeError ?? e); // エンコーダーが閉じていた（GPU の失敗など）
+      }
       vf.close();
       while (venc.encodeQueueSize > 6) await new Promise((r) => setTimeout(r, 2));
       const now = performance.now();
@@ -167,9 +195,9 @@ export async function runExport(job: ExportJob): Promise<ExportResult> {
     }
 
     job.onProgress({ phase: "finalizing", frame: total, totalFrames: total, speed: 0, elapsedSec: (performance.now() - t0) / 1000 });
-    await venc.flush();
+    await venc.flush().catch((e) => fail(encodeError ?? e));
     if (audio) await aenc.flush();
-    if (encodeError) throw encodeError;
+    if (encodeError) fail(encodeError);
     muxer.finalize();
     return {
       buffer: target.buffer,

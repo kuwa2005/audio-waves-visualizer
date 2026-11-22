@@ -44,6 +44,7 @@ function onWorkerMessage(msg: FromWorker): void {
       break;
     }
     case "exportDone": {
+      exportSent = false;
       const r = msg.result;
       const prev = st.exportState;
       if (prev.state === "done") URL.revokeObjectURL(prev.url);
@@ -67,6 +68,7 @@ function onWorkerMessage(msg: FromWorker): void {
       break;
     }
     case "exportError":
+      exportSent = false;
       st.patch({ exportState: { state: "error", message: msg.message, cancelled: msg.cancelled } });
       break;
   }
@@ -153,6 +155,11 @@ function stopSync(): void {
 
 export async function loadAudio(file: File): Promise<void> {
   const st = useStore.getState();
+  if (st.exportState.state === "running") {
+    // 書き出し中に差し替えると、プレビューと書き出し中の曲が食い違うので受け付けない
+    st.patch({ error: `書き出し中は音声を差し替えられません（${file.name}）。書き出しが終わってから読み込んでください` });
+    return;
+  }
   st.patch({ loading: `音声を解析中: ${file.name}`, error: null, playing: false, audioFile: { name: file.name, size: file.size } });
   stopSync();
   try {
@@ -296,6 +303,8 @@ export async function startExport(settings: ExportSettings): Promise<void> {
   const src = audio.channelsCopy();
   if (!src) return;
   st.patch({ exportState: { state: "running", progress: null } });
+  cancelBeforeStart = false;
+  exportSent = false;
 
   // AAC を作れない環境では、ffmpeg.wasm で範囲の音声を AAC にしてから渡す
   let aac: PreEncodedAac | undefined;
@@ -306,7 +315,7 @@ export async function startExport(settings: ExportSettings): Promise<void> {
       const to = Math.floor(settings.end * src.sampleRate);
       const slices = src.channels.map((c) => c.slice(from, to));
       if (settings.audioFade > 0) slices.forEach((c) => applyAudioFade(c, src.sampleRate, settings.audioFade));
-      aac = await encodeAacWithFfmpeg(slices, src.sampleRate);
+      aac = await encodeAacWithFfmpeg(compensateAacPriming(slices), src.sampleRate);
       useStore.getState().patch({ exportState: { state: "running", progress: null } });
     } catch (e) {
       // 変換できなければ Opus で続行（完了時に注意を表示）
@@ -314,11 +323,37 @@ export async function startExport(settings: ExportSettings): Promise<void> {
       useStore.getState().patch({ exportState: { state: "running", progress: null, note: "AAC に変換できなかったため Opus で書き出します" } });
     }
   }
+  // AAC の変換中に「中止」が押されていたら、書き出しを始めない
+  if (cancelBeforeStart) {
+    cancelBeforeStart = false;
+    useStore.getState().patch({ exportState: { state: "error", message: "書き出しを中止しました", cancelled: true } });
+    return;
+  }
   const transfer: Transferable[] = src.channels.map((c) => c.buffer);
   if (aac) transfer.push(aac.data.buffer, aac.sizes.buffer);
+  exportSent = true;
   host?.send({ type: "export", settings, channels: src.channels, sampleRate: src.sampleRate, aac }, transfer);
 }
 
+/** 書き出しを Worker に送る前（AAC 変換中）に中止されたか */
+let cancelBeforeStart = false;
+/** 書き出しを Worker に送ったか（送る前の中止は Worker に届いても無視されるため、こちらで止める） */
+let exportSent = false;
+
 export function cancelExport(): void {
+  if (!exportSent) cancelBeforeStart = true;
   host?.send({ type: "cancelExport" });
+}
+
+/**
+ * ffmpeg の AAC エンコーダーは先頭に 1024 サンプルの無音（エンコーダーの遅延）を付けるので、
+ * そのぶん入力を先へずらし、末尾を無音で埋めて長さを保つ（映像と音声の頭を揃える）。
+ */
+export const FFMPEG_AAC_PRIMING = 1024;
+export function compensateAacPriming(chans: Float32Array[]): Float32Array[] {
+  return chans.map((c) => {
+    const out = new Float32Array(c.length);
+    out.set(c.subarray(Math.min(FFMPEG_AAC_PRIMING, c.length)));
+    return out;
+  });
 }
