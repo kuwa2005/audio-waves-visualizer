@@ -137,6 +137,17 @@ function frame(ts: number): void {
   }
 }
 
+/** シーンから参照されなくなった背景画像を解放する（書き出し中は使っているかもしれないので解放しない） */
+function releaseUnusedImages(): void {
+  if (!scene || exporting) return;
+  const used = new Set(Object.values(scene.background.images));
+  for (const [id, bmp] of images) {
+    if (used.has(id)) continue;
+    bmp.close();
+    images.delete(id);
+  }
+}
+
 function applyCanvasSize(): void {
   if (!ctx || !scene) return;
   const { width, height } = OUTPUT_SIZE[scene.aspect];
@@ -192,6 +203,7 @@ async function startExport(msg: Extract<ToWorker, { type: "export" }>): Promise<
     post({ type: "exportError", message: e instanceof Error ? e.message : String(e), cancelled: e instanceof ExportCancelled });
   } finally {
     exporting = false;
+    releaseUnusedImages();
     lastFrameTs = 0;
     preview?.reset();
   }
@@ -232,6 +244,7 @@ self.onmessage = async (e: MessageEvent<ToWorker>) => {
         scene = msg.scene;
         applyCanvasSize();
         preview?.prune(scene);
+        releaseUnusedImages();
         break;
       case "transport":
         transport = msg.transport;
@@ -241,7 +254,6 @@ self.onmessage = async (e: MessageEvent<ToWorker>) => {
         loadTrack(msg.pcm, msg.sampleRate);
         break;
       case "image":
-        if (!exporting) images.get(msg.id)?.close(); // 書き出し中は使用中かもしれないので閉じない
         images.set(msg.id, msg.bitmap);
         preview?.invalidateBackground();
         break;

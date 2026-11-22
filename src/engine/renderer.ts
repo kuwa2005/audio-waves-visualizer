@@ -42,16 +42,33 @@ export class SceneRenderer {
     this.background.invalidate();
   }
 
-  /** シーンから消えたレイヤーのインスタンスを破棄 */
+  /** シーンから消えたレイヤーのインスタンスを破棄（WASM などの資源も解放） */
   prune(scene: Scene): void {
     const ids = new Set([...scene.visualizers.map((v) => v.id), ...scene.effects.map((e) => e.id)]);
-    for (const id of this.instances.keys()) if (!ids.has(id)) this.instances.delete(id);
-    for (const id of this.effects.keys()) if (!ids.has(id)) this.effects.delete(id);
+    for (const [id, { inst }] of this.instances) {
+      if (ids.has(id)) continue;
+      inst.dispose?.();
+      this.instances.delete(id);
+    }
+    for (const [id, { inst }] of this.effects) {
+      if (ids.has(id)) continue;
+      inst.dispose?.();
+      this.effects.delete(id);
+    }
+  }
+
+  /** すべてのインスタンスを破棄（書き出しの後など） */
+  dispose(): void {
+    for (const { inst } of this.instances.values()) inst.dispose?.();
+    for (const { inst } of this.effects.values()) inst.dispose?.();
+    this.instances.clear();
+    this.effects.clear();
   }
 
   private instanceFor(layerId: string, pluginId: string): VisualizerInstance | null {
     const cur = this.instances.get(layerId);
     if (cur && cur.pluginId === pluginId) return cur.inst;
+    cur?.inst.dispose?.(); // 同じレイヤーで種類が変わった
     const plugin = REGISTRY[pluginId];
     if (!plugin) return null;
     const inst = plugin.create();
@@ -62,6 +79,7 @@ export class SceneRenderer {
   private effectFor(layerId: string, pluginId: string): EffectInstance | null {
     const cur = this.effects.get(layerId);
     if (cur && cur.pluginId === pluginId) return cur.inst;
+    cur?.inst.dispose?.();
     const plugin = EFFECT_REGISTRY[pluginId];
     if (!plugin) return null;
     const inst = plugin.create();

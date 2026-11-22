@@ -26,6 +26,11 @@ export const galaxy: VisualizerPlugin = {
     let rctx: OffscreenCanvasRenderingContext2D | null = null;
 
     return {
+      dispose() {
+        sim?.free();
+        sim = null;
+        key = "";
+      },
       reset() {
         // シーク時は作り直して初期状態から（書き出しと同じ開始状態にする）
         sim?.free();

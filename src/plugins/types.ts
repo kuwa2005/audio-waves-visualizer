@@ -62,6 +62,7 @@ export interface EffectInstance {
   /** ctx.canvas（ここまでの描画結果）を加工する */
   apply(ctx: Ctx2D, frame: EffectContext, params: ParamValues): void;
   reset?(): void;
+  dispose?(): void;
 }
 
 export type EffectMeta = Omit<PluginMeta, "bounds">;
@@ -81,6 +82,8 @@ export interface VisualizerInstance {
   render(ctx: Ctx2D, frame: FrameContext, params: ParamValues): void;
   /** シーク時などに内部状態（平滑化・残像）を初期化する */
   reset?(): void;
+  /** レイヤーを外したとき・書き出し後に、WASM などの資源を解放する */
+  dispose?(): void;
 }
 
 export type VisualizerPlugin = PluginMeta & {
