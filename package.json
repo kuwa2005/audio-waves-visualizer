@@ -1,7 +1,7 @@
 {
   "name": "audio-waves-visualizer",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Audio Waves Visualizer — 音楽と画像からド派手なビジュアライザー動画を作る Web アプリ",
   "license": "MIT",
   "type": "module",

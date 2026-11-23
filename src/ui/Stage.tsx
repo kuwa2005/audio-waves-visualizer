@@ -21,6 +21,7 @@ export function hitAll(px: number, py: number): string[] {
   const { width: W, height: H } = OUTPUT_SIZE[scene.aspect];
   const out: string[] = [];
   for (const id of ["subtitles", "title"] as const) {
+    if (scene[id].locked) continue; // 固定中はクリックで選べない
     const r = textRect(id);
     if (r && px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h) out.push(id);
   }
@@ -40,6 +41,13 @@ function pickTarget(px: number, py: number): { id: string | null; hits: string[]
   const hits = hitAll(px, py);
   const sel = useStore.getState().selectedLayerId;
   return { id: sel && hits.includes(sel) ? sel : (hits[0] ?? null), hits };
+}
+
+/** 固定中のレイヤーか */
+function isLocked(id: string): boolean {
+  const { scene } = useStore.getState();
+  if (id === "title" || id === "subtitles") return !!scene[id].locked;
+  return !!scene.visualizers.find((v) => v.id === id)?.locked;
 }
 
 /** クリックとみなす移動量（出力座標の px） */
@@ -127,7 +135,7 @@ export function Stage() {
       const st = useStore.getState();
       const id = pickTarget(px, py).id ?? st.selectedLayerId;
       const tr = transformOf(id);
-      if (!id || !tr || st.scene.visualizers.some((v) => v.id === id && v.locked)) return;
+      if (!id || !tr || isLocked(id)) return;
       e.preventDefault();
       if (st.selectedLayerId !== id) st.selectLayer(id);
       setFocused(true);
@@ -203,7 +211,7 @@ export function Stage() {
           useStore.getState().setTransform(id, { ...IDENTITY_TRANSFORM });
         }}
       >
-        <canvas ref={canvasRef} data-testid="stage-canvas" className="absolute inset-0 h-full w-full rounded-xl bg-black shadow-2xl shadow-black/50" />
+        <canvas ref={canvasRef} data-testid="stage-canvas" className="absolute inset-0 h-full w-full bg-black shadow-2xl shadow-black/50" />
         {focused && selRect && selectedId && (
           <div
             data-testid="selection-box"

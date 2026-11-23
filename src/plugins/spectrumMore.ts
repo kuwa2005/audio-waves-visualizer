@@ -48,7 +48,7 @@ export const radialBars: VisualizerPlugin = {
         const cy = H / 2;
 
         // 中央の画像（丸く切り抜いて回す）
-        if (p.art !== false && frame.artwork) {
+        if (str(p, "art", "show") !== "hide" && p.art !== false && frame.artwork) {
           const art = frame.artwork;
           ctx.save();
           ctx.beginPath();

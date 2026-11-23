@@ -9,6 +9,44 @@ function fmt(sec: number): string {
   return `${m}:${s}`;
 }
 
+/** 横書き／縦書きの切替と、固定ボタン（タイトル・字幕共通） */
+function TextLayerTools({ id }: { id: "title" | "subtitles" }) {
+  const layer = useStore((s) => s.scene[id]);
+  const setTextParam = useStore((s) => s.setTextParam);
+  const toggleLock = useStore((s) => s.toggleLock);
+  const writing = str(layer.params, "writing", "horizontal");
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex rounded-lg bg-raised p-0.5" role="radiogroup" aria-label="文字の向き">
+        {[
+          ["horizontal", "横書き"],
+          ["vertical", "縦書き"],
+        ].map(([v, label]) => (
+          <button
+            key={v}
+            role="radio"
+            aria-checked={writing === v}
+            data-testid={`${id}-writing-${v}`}
+            onClick={() => setTextParam(id, "writing", v)}
+            className={`rounded-md px-2.5 py-1 text-xs transition ${writing === v ? "bg-surface text-ink shadow" : "text-ink-muted hover:text-ink"}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <button
+        data-testid={`${id}-lock`}
+        aria-pressed={!!layer.locked}
+        onClick={() => toggleLock(id)}
+        className={`ml-auto rounded-lg border px-2 py-1 text-xs transition ${layer.locked ? "border-warn/60 text-warn" : "border-line text-ink-muted hover:text-ink"}`}
+        title={layer.locked ? "固定中（プレビュー上で選択・移動できません）。押すと解除" : "固定する（プレビュー上で選択・移動できなくなります）"}
+      >
+        {layer.locked ? "🔒 固定中" : "🔓 固定する"}
+      </button>
+    </div>
+  );
+}
+
 /** 手順3: テキスト（タイトルと字幕）。文字の内容はここ、見た目はインスペクターで調整する */
 export function TextPanel() {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -27,6 +65,7 @@ export function TextPanel() {
             表示する
           </label>
         </div>
+        <TextLayerTools id="title" />
         <textarea
           data-testid="title-text"
           rows={2}
@@ -62,6 +101,7 @@ export function TextPanel() {
             表示する
           </label>
         </div>
+        <TextLayerTools id="subtitles" />
         <button
           onClick={() => fileRef.current?.click()}
           className="w-full rounded-xl border border-dashed border-line bg-raised/40 px-4 py-4 text-left transition hover:border-accent-from hover:bg-raised"
@@ -97,7 +137,13 @@ export function TextPanel() {
               >
                 見た目・動き・タイミング →
               </button>
-              <button onClick={() => setSubtitles([], null)} className="rounded-lg border border-line px-3 py-1.5 text-xs text-ink-muted hover:border-bad hover:text-bad">
+              <button
+                data-testid="subs-remove"
+                disabled={!!subs.locked}
+                title={subs.locked ? "固定中は外せません" : undefined}
+                onClick={() => setSubtitles([], null)}
+                className="rounded-lg border border-line px-3 py-1.5 text-xs text-ink-muted hover:border-bad hover:text-bad disabled:opacity-30 disabled:hover:border-line disabled:hover:text-ink-muted"
+              >
                 字幕を外す
               </button>
             </div>

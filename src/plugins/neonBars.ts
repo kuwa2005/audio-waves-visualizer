@@ -64,16 +64,21 @@ export const neonBars: VisualizerPlugin = {
         const punch = 1 + f.kick * 0.12;
 
         ctx.save();
-        ctx.globalCompositeOperation = "lighter";
 
-        // 床の光（低音とビートで明るく）
-        const floor = sprites.tintedGlow(colors[Math.floor(bars * 0.15)]);
-        ctx.globalAlpha = Math.min(1, 0.15 + f.bass * 0.45 + f.kick * 0.4);
-        ctx.drawImage(floor, -W * 0.1, baseY - H * 0.12, W * 1.2, H * 0.24);
+        // 床の光（低音とビートで明るく）。「発光」の値に比例（0 なら光らない。既定 0.6 で従来の明るさ）
+        const glowK = glow / 0.6;
+        if (glow > 0) {
+          ctx.globalCompositeOperation = "lighter";
+          const floor = sprites.tintedGlow(colors[Math.floor(bars * 0.15)]);
+          ctx.globalAlpha = Math.min(1, (0.15 + f.bass * 0.45 + f.kick * 0.4) * glowK);
+          ctx.drawImage(floor, -W * 0.1, baseY - H * 0.12, W * 1.2, H * 0.24);
+        }
 
+        // 棒そのものは普通に塗る（加算にすると背景と足し合わさって、発光 0 でも光って見える）
         for (let b = 0; b < bars; b++) {
           const h = Math.max(2, levels[b] * maxH * punch);
           const x = b * gap + (gap - barW) / 2;
+          ctx.globalCompositeOperation = "source-over";
           ctx.globalAlpha = 1;
           ctx.fillStyle = colors[b];
           ctx.fillRect(x, baseY - h, barW, h);
@@ -84,7 +89,8 @@ export const neonBars: VisualizerPlugin = {
             ctx.fillRect(x, baseY + 4, barW, h * 0.35);
           }
           if (glow > 0 && levels[b] > 0.05) {
-            ctx.globalAlpha = glow * 0.5 * levels[b];
+            ctx.globalCompositeOperation = "lighter";
+            ctx.globalAlpha = Math.min(1, glow * 0.5 * levels[b]);
             ctx.drawImage(sprites.tintedGlow(colors[b]), x - gap * 1.6, baseY - h - gap * 1.5, barW + gap * 3.2, h + gap * 3);
           }
         }

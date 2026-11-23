@@ -5,6 +5,8 @@
   --color-base: #0b0d12;
   --color-surface: #12151d;
   --color-raised: #191d28;
+  /* プレビュー枠の外側（黒い映像との境目が分かるよう、少し明るく色を付ける） */
+  --color-stage: #1d2232;
   --color-line: #262b38;
   --color-ink: #e8eaf2;
   --color-ink-muted: #9aa1b4;
@@ -17,11 +19,12 @@
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
-/* ダークが既定。ライトはユーザーが明示的に切り替えたときだけ（切替 UI はフェーズ4） */
+/* ダークが既定。ライトは右上の電球で切り替えたとき */
 :root[data-theme="light"] {
   --color-base: #f5f6fa;
   --color-surface: #ffffff;
   --color-raised: #eef0f6;
+  --color-stage: #dfe3ec;
   --color-line: #d9dce6;
   --color-ink: #12151d;
   --color-ink-muted: #5b6275;

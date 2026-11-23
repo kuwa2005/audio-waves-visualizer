@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { blockTransform, glyphState, layoutGlyphs, type AnimInput, type Glyph } from "./kinetic";
-import type { TextStyle } from "./textCatalog";
+import { blockTransform, glyphState, layoutGlyphs, verticalChars, type AnimInput, type Glyph } from "./kinetic";
+import { styleFrom, titleBounds, titleLines, type TextStyle } from "./textCatalog";
 
 const g = (index: number, ch = "あ"): Glyph => ({ ch, x: 0, y: 0, w: 50, line: 0, index });
 const input = (anim: AnimInput["anim"], lt: number, over: Partial<AnimInput> = {}): AnimInput => ({
@@ -62,5 +62,22 @@ describe("縦書きのレイアウト", () => {
     expect(second.map((x) => x.ch).join("")).toBe("う︒");
     expect(first[0].x).toBeGreaterThan(second[0].x); // 1 行目が右
     expect(first[1].y).toBeGreaterThan(first[0].y); // 上から下へ
+  });
+});
+
+describe("タイトルの縦書き", () => {
+  it("is taller than wide and splits long titles into columns", () => {
+    const p = { title: "あいうえおかきくけこさしすせそたちつてと", subtitle: "", size: 0.09, writing: "vertical", anchor: "center" };
+    const b = titleBounds(p, 1920, 1080);
+    expect(b.h).toBeGreaterThan(b.w);
+    expect(b.h).toBeLessThan(1080);
+    const main = styleFrom(p, 1080);
+    const cols = titleLines(p.title, main, 1920, 1080, true);
+    expect(cols.length).toBeGreaterThan(1);
+    expect(cols.join("")).toBe(p.title);
+  });
+
+  it("uses vertical punctuation forms", () => {
+    expect(verticalChars("「あ、ー」")).toEqual(["﹁", "あ", "︑", "丨", "﹂"]);
   });
 });

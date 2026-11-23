@@ -138,7 +138,16 @@ export function attachCanvas(canvas: HTMLCanvasElement): () => void {
 }
 
 audio.onEnded = () => {
-  useStore.getState().patch({ playing: false });
+  const st = useStore.getState();
+  // リピート: 最後まで再生したら先頭から続ける（書き出し中は繰り返さない）
+  if (st.repeat && st.track && st.exportState.state !== "running") {
+    void audio.play().then(() => {
+      useStore.getState().patch({ playing: audio.isPlaying });
+      pushTransport();
+    });
+    return;
+  }
+  st.patch({ playing: false });
   stopSync();
   pushTransport();
 };

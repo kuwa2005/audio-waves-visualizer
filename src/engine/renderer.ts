@@ -1,6 +1,6 @@
 import { BackgroundRenderer } from "./background";
 import type { AudioFeatures } from "./features";
-import { fadeFactor, OUTPUT_SIZE, pickBackgroundImage, resolveRange, type Scene } from "./scene";
+import { fadeFactor, OUTPUT_SIZE, pickBackgroundImage, resolveRange, type Scene, type VisualizerLayer } from "./scene";
 import { EFFECT_REGISTRY } from "../plugins/effects";
 import { REGISTRY } from "../plugins/registry";
 import { TextRenderer } from "../text/textRenderer";
@@ -145,25 +145,22 @@ export class SceneRenderer {
       beatSens: 1,
     };
     for (const layer of scene.visualizers) {
-      if (!layer.enabled || layer.opacity <= 0) continue;
+      const opacity = layer.opacity ?? 1;
+      if (!layer.enabled || opacity <= 0.001) continue;
       const inst = this.instanceFor(layer.id, layer.pluginId);
       if (!inst) continue;
-      // 注: layer.opacity の反映はフェーズ4（レイヤー合成）で実装する
-      ctx.save();
-      ctx.globalAlpha = 1;
-      ctx.globalCompositeOperation = "source-over";
-      const tr = layer.transform;
-      if (tr && (tr.x !== 0 || tr.y !== 0 || tr.scale !== 1)) {
-        // 自身の描画範囲の中心を基準に拡大し、移動する（当たり判定の transformRect と同じ計算）
-        const b = REGISTRY[layer.pluginId].bounds(layer.params, W, H);
-        const cx = b.x + b.w / 2;
-        const cy = b.y + b.h / 2;
-        ctx.translate(cx + tr.x * W, cy + tr.y * H);
-        ctx.scale(tr.scale, tr.scale);
-        ctx.translate(-cx, -cy);
+      // 半透明のときは別のキャンバスに描いてから不透明度を掛けて重ねる（プラグインが globalAlpha を使っても正しく効く）
+      const translucent = opacity < 0.999;
+      const target = translucent ? this.layerCtx(W, H) : ctx;
+      if (translucent) target.clearRect(0, 0, W, H);
+      this.drawVisualizer(target, layer, inst, fc, W, H);
+      if (translucent) {
+        ctx.save();
+        ctx.globalAlpha = opacity;
+        ctx.globalCompositeOperation = "source-over";
+        ctx.drawImage(target.canvas, 0, 0);
+        ctx.restore();
       }
-      inst.render(ctx, this.withSens(fc, layer.params.beatSens), layer.params);
-      ctx.restore();
     }
 
     if (scene.effects.length > 0) this.applyEffects(ctx, scene, fc, W, H);
@@ -178,6 +175,36 @@ export class SceneRenderer {
       ctx.globalAlpha = 1 - fade;
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    }
+  }
+
+  /** 半透明レイヤー用の作業キャンバス */
+  private layerCanvas: OffscreenCanvas | null = null;
+  private layerCtx(W: number, H: number): OffscreenCanvasRenderingContext2D {
+    if (!this.layerCanvas || this.layerCanvas.width !== W || this.layerCanvas.height !== H) this.layerCanvas = new OffscreenCanvas(W, H);
+    return this.layerCanvas.getContext("2d")!;
+  }
+
+  /** 効き具合が 1 未満のエフェクト用に、かける前の絵を取っておくキャンバス */
+  private fxBackup: OffscreenCanvas | null = null;
+
+  private drawVisualizer(ctx: OffscreenCanvasRenderingContext2D, layer: VisualizerLayer, inst: VisualizerInstance, fc: FrameContext, W: number, H: number): void {
+    {
+      ctx.save();
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = "source-over";
+      const tr = layer.transform;
+      if (tr && (tr.x !== 0 || tr.y !== 0 || tr.scale !== 1)) {
+        // 自身の描画範囲の中心を基準に拡大し、移動する（当たり判定の transformRect と同じ計算）
+        const b = REGISTRY[layer.pluginId].bounds(layer.params, W, H);
+        const cx = b.x + b.w / 2;
+        const cy = b.y + b.h / 2;
+        ctx.translate(cx + tr.x * W, cy + tr.y * H);
+        ctx.scale(tr.scale, tr.scale);
+        ctx.translate(-cx, -cy);
+      }
+      inst.render(ctx, this.withSens(fc, layer.params.beatSens), layer.params);
       ctx.restore();
     }
   }
@@ -215,14 +242,31 @@ export class SceneRenderer {
       small: (i, div) => this.small(i, div, W, H),
     };
     for (const layer of scene.effects) {
-      if (!layer.enabled) continue;
+      const amount = layer.opacity ?? 1;
+      if (!layer.enabled || amount <= 0.001) continue;
       const inst = this.effectFor(layer.id, layer.pluginId);
       if (!inst) continue;
+      const partial = amount < 0.999;
+      if (partial) {
+        // かける前の絵を取っておき、後で (1 - 効き具合) の濃さで重ね戻す
+        if (!this.fxBackup || this.fxBackup.width !== W || this.fxBackup.height !== H) this.fxBackup = new OffscreenCanvas(W, H);
+        const b = this.fxBackup.getContext("2d")!;
+        b.globalCompositeOperation = "copy";
+        b.drawImage(ctx.canvas, 0, 0);
+      }
       ctx.save();
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = "source-over";
       inst.apply(ctx, this.withSens(fx, layer.params.beatSens), layer.params);
       ctx.restore();
+      if (partial) {
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalCompositeOperation = "source-over";
+        ctx.globalAlpha = 1 - amount;
+        ctx.drawImage(this.fxBackup!, 0, 0);
+        ctx.restore();
+      }
     }
   }
 }

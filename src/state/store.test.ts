@@ -40,6 +40,19 @@ describe("レイヤーの並べ替え・初期値に戻す・種類ごとの記�
     expect(st().scene.visualizers[0].transform).toMatchObject({ x: 0.4, scale: 1.5 });
   });
 
+  it("opacity is clamped and remembered per kind; text layers can be locked", () => {
+    const id = st().scene.visualizers[0].id;
+    st().setOpacity(id, 0.3);
+    st().removeVisualizer(id);
+    st().addVisualizer("neon-bars");
+    expect(st().scene.visualizers[0].opacity).toBeCloseTo(0.3);
+    st().setOpacity("subtitles", 5);
+    expect(st().scene.subtitles.opacity).toBe(1);
+    st().toggleLock("title");
+    expect(st().scene.title.locked).toBe(true);
+    st().toggleLock("title");
+  });
+
   it("moves an effect", () => {
     st().addEffect("bloom");
     st().addEffect("vignette");

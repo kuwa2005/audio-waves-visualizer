@@ -20,7 +20,7 @@ import { findMeta } from "../plugins/catalog";
 import { findEffectMeta } from "../plugins/effectCatalog";
 import { SUBTITLE_PARAMS, TITLE_PARAMS } from "../text/textCatalog";
 import type { Cue } from "../text/subtitles";
-import { clearSettings, loadAutoDownload, loadPerfOpen, loadSettings, loadTheme, memoryKey, saveAutoDownload, savePerfOpen, saveSettings, saveTheme, type Theme } from "./persist";
+import { clearSettings, loadAutoDownload, loadPerfOpen, loadRepeat, saveRepeat, loadSettings, loadTheme, memoryKey, saveAutoDownload, savePerfOpen, saveSettings, saveTheme, type Theme } from "./persist";
 import { defaultParams, type ParamDef } from "../plugins/types";
 import type { ParamValues } from "../engine/scene";
 
@@ -63,6 +63,10 @@ type State = {
   lastParams: Record<string, ParamValues>;
   /** 種類ごとの最後の位置・大きさ（スペアナ・環境演出） */
   lastTransforms: Record<string, LayerTransform>;
+  /** 種類ごとの最後の不透明度 */
+  lastOpacity: Record<string, number>;
+  /** 曲の最後まで再生したら先頭から繰り返す（このブラウザに保存） */
+  repeat: boolean;
   /** 画面の配色（このブラウザに保存） */
   theme: Theme;
   /** 性能表示を開いているか（このブラウザに保存） */
@@ -76,8 +80,11 @@ type Actions = {
   addVisualizer(pluginId: string): void;
   removeVisualizer(id: string): void;
   toggleVisualizer(id: string): void;
-  /** レイヤーの固定・解除（スペアナ等・エフェクト共通） */
+  /** レイヤーの固定・解除（スペアナ等・エフェクト・タイトル・字幕） */
   toggleLock(id: string): void;
+  /** 不透明度 0..1（スペアナ等・エフェクト・タイトル・字幕） */
+  setOpacity(id: string, opacity: number): void;
+  setRepeat(on: boolean): void;
   /** レイヤーの重なり順を変える（toIndex は scene.visualizers の添字。大きいほど手前） */
   moveVisualizer(id: string, toIndex: number): void;
   /** エフェクトのかかる順番を変える */
@@ -135,7 +142,7 @@ function initialScene(): Scene {
 }
 
 /** 種類ごとの記憶。前の版で保存したレイヤー一覧しか無ければ、そこから引き継ぐ */
-function initialMemory(): { lastParams: Record<string, ParamValues>; lastTransforms: Record<string, LayerTransform> } {
+function initialMemory(): { lastParams: Record<string, ParamValues>; lastTransforms: Record<string, LayerTransform>; lastOpacity: Record<string, number> } {
   const lastParams = { ...(saved?.lastParams ?? {}) };
   const lastTransforms = { ...(saved?.lastTransforms ?? {}) };
   for (const v of saved?.visualizers ?? []) {
@@ -144,7 +151,7 @@ function initialMemory(): { lastParams: Record<string, ParamValues>; lastTransfo
     lastTransforms[k] ??= v.transform;
   }
   for (const e of saved?.effects ?? []) lastParams[memoryKey("effect", e.pluginId)] ??= e.params;
-  return { lastParams, lastTransforms };
+  return { lastParams, lastTransforms, lastOpacity: { ...(saved?.lastOpacity ?? {}) } };
 }
 
 /** 配列の要素を移動する（範囲外は端に寄せる） */
@@ -202,6 +209,7 @@ export const useStore = create<State & Actions>((set) => ({
   exportState: { state: "idle" },
   autoDownload: loadAutoDownload(),
   ...initialMemory(),
+  repeat: loadRepeat(),
   theme: loadTheme(),
   perfOpen: loadPerfOpen(),
 
@@ -213,7 +221,8 @@ export const useStore = create<State & Actions>((set) => ({
       const meta = findMeta(pluginId);
       if (!meta) return {};
       const transform = { ...(s.lastTransforms[memoryKey("visualizer", pluginId)] ?? IDENTITY_TRANSFORM) };
-      const layer: VisualizerLayer = { id: newLayerId(), kind: "visualizer", pluginId, enabled: true, opacity: 1, transform, params: paramsForNew(s, "visualizer", meta) };
+      const opacity = s.lastOpacity[memoryKey("visualizer", pluginId)] ?? 1;
+      const layer: VisualizerLayer = { id: newLayerId(), kind: "visualizer", pluginId, enabled: true, opacity, transform, params: paramsForNew(s, "visualizer", meta) };
       return { scene: { ...s.scene, visualizers: [...s.scene.visualizers, layer] }, selectedLayerId: layer.id };
     }),
   removeVisualizer: (id) =>
@@ -223,12 +232,36 @@ export const useStore = create<State & Actions>((set) => ({
     })),
   toggleLock: (id) =>
     set((s) => ({
-      scene: {
+      scene:
+        id === "title" || id === "subtitles"
+          ? { ...s.scene, [id]: { ...s.scene[id], locked: !s.scene[id].locked } }
+          : {
         ...s.scene,
         visualizers: s.scene.visualizers.map((v) => (v.id === id ? { ...v, locked: !v.locked } : v)),
         effects: s.scene.effects.map((e) => (e.id === id ? { ...e, locked: !e.locked } : e)),
       },
     })),
+  setOpacity: (id, value) =>
+    set((s) => {
+      const opacity = Math.min(1, Math.max(0, value));
+      if (id === "title" || id === "subtitles") return { scene: { ...s.scene, [id]: { ...s.scene[id], opacity } } };
+      const v = s.scene.visualizers.find((x) => x.id === id);
+      if (v)
+        return {
+          scene: mapVisualizers(s.scene, (x) => (x.id === id ? { ...x, opacity } : x)),
+          lastOpacity: { ...s.lastOpacity, [memoryKey("visualizer", v.pluginId)]: opacity },
+        };
+      const e = s.scene.effects.find((x) => x.id === id);
+      if (!e) return {};
+      return {
+        scene: { ...s.scene, effects: s.scene.effects.map((x) => (x.id === id ? { ...x, opacity } : x)) },
+        lastOpacity: { ...s.lastOpacity, [memoryKey("effect", e.pluginId)]: opacity },
+      };
+    }),
+  setRepeat: (on) => {
+    saveRepeat(on);
+    set({ repeat: on });
+  },
   toggleVisualizer: (id) => set((s) => ({ scene: mapVisualizers(s.scene, (v) => (v.id === id ? { ...v, enabled: !v.enabled } : v)) })),
   moveVisualizer: (id, toIndex) => set((s) => ({ scene: { ...s.scene, visualizers: moveItem(s.scene.visualizers, id, toIndex) } })),
   moveEffect: (id, toIndex) => set((s) => ({ scene: { ...s.scene, effects: moveItem(s.scene.effects, id, toIndex) } })),
@@ -286,7 +319,8 @@ export const useStore = create<State & Actions>((set) => ({
     set((s) => {
       const meta = findEffectMeta(pluginId);
       if (!meta) return {};
-      const layer: EffectLayer = { id: newLayerId(), kind: "effect", pluginId, enabled: true, params: paramsForNew(s, "effect", meta) };
+      const opacity = s.lastOpacity[memoryKey("effect", pluginId)] ?? 1;
+      const layer: EffectLayer = { id: newLayerId(), kind: "effect", pluginId, enabled: true, opacity, params: paramsForNew(s, "effect", meta) };
       return { scene: { ...s.scene, effects: [...s.scene.effects, layer] }, selectedLayerId: layer.id };
     }),
   removeEffect: (id) =>
@@ -308,7 +342,7 @@ export const useStore = create<State & Actions>((set) => ({
       const f = freshScene();
       const fb = f.background;
       const bg = { ...s.scene.background, dim: fb.dim, zoomPunch: fb.zoomPunch, scale: fb.scale, panX: fb.panX, panY: fb.panY, fadeIn: fb.fadeIn, fadeOut: fb.fadeOut };
-      return { scene: { ...s.scene, background: bg, visualizers: f.visualizers, effects: f.effects }, selectedLayerId: null, lastParams: {}, lastTransforms: {} };
+      return { scene: { ...s.scene, background: bg, visualizers: f.visualizers, effects: f.effects }, selectedLayerId: null, lastParams: {}, lastTransforms: {}, lastOpacity: {} };
     }),
   setAutoDownload: (on) => {
     saveAutoDownload(on);
@@ -331,12 +365,12 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 useStore.subscribe((s, prev) => {
   const a = s.scene;
   const b = prev.scene;
-  if (a.aspect === b.aspect && a.background === b.background && a.visualizers === b.visualizers && a.effects === b.effects && s.lastParams === prev.lastParams && s.lastTransforms === prev.lastTransforms) return;
+  if (a.aspect === b.aspect && a.background === b.background && a.visualizers === b.visualizers && a.effects === b.effects && s.lastParams === prev.lastParams && s.lastTransforms === prev.lastTransforms && s.lastOpacity === prev.lastOpacity) return;
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     const st = useStore.getState();
     const cur = st.scene;
     // レイヤーの一覧は保存しない（再読み込み時は空から始める）。種類ごとの設定値と位置・大きさを保存する
-    saveSettings({ aspect: cur.aspect, lastParams: st.lastParams, lastTransforms: st.lastTransforms, background: cur.background, visualizers: [], effects: [] });
+    saveSettings({ aspect: cur.aspect, lastParams: st.lastParams, lastTransforms: st.lastTransforms, lastOpacity: st.lastOpacity, background: cur.background, visualizers: [], effects: [] });
   }, 300);
 });

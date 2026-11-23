@@ -81,6 +81,10 @@ export type TitleLayer = {
   enabled: boolean;
   transform: LayerTransform;
   params: ParamValues;
+  /** 不透明度 0..1（未設定は 1） */
+  opacity?: number;
+  /** 固定中: プレビュー上でクリック・移動・拡大縮小できない */
+  locked?: boolean;
 };
 
 /** 字幕 */
@@ -90,6 +94,10 @@ export type SubtitleLayer = {
   enabled: boolean;
   transform: LayerTransform;
   params: ParamValues;
+  /** 不透明度 0..1（未設定は 1） */
+  opacity?: number;
+  /** 固定中: プレビュー上でクリック・移動・拡大縮小できない。外せない */
+  locked?: boolean;
   cues: { start: number; end: number; text: string }[];
   fileName: string | null;
 };
@@ -103,6 +111,8 @@ export type EffectLayer = {
   pluginId: string;
   enabled: boolean;
   params: ParamValues;
+  /** 効き具合 0..1（未設定は 1。1 未満ならかける前の絵と混ぜる） */
+  opacity?: number;
   /** 固定中: 削除できない */
   locked?: boolean;
 };
@@ -138,7 +148,7 @@ export type Scene = {
 export function defaultScene(): Scene {
   return {
     aspect: "16:9",
-    background: { id: "background", kind: "background", images: {}, dim: 0.35, zoomPunch: 0.4, scale: 1, panX: 0, panY: 0, fadeIn: 0, fadeOut: 0 },
+    background: { id: "background", kind: "background", images: {}, dim: 0, zoomPunch: 0, scale: 1, panX: 0, panY: 0, fadeIn: 0, fadeOut: 0 },
     visualizers: [],
     effects: [],
     range: { start: 0, length: null },

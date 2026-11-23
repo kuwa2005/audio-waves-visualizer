@@ -8,8 +8,8 @@ test("スライダーをダブルクリックすると初期値に戻る", async
   // 素材タブ
   const dim = page.locator("label", { hasText: "暗さ" }).locator("input");
   for (const [loc, changed, def] of [
-    [dim, "0.7", "0.35"],
-    [page.getByTestId("zoom-punch"), "-0.8", "0.4"],
+    [dim, "0.7", "0"],
+    [page.getByTestId("zoom-punch"), "-0.8", "0"],
     [page.getByTestId("bg-scale"), "2.5", "1"],
   ] as const) {
     await loc.fill(changed);
@@ -17,7 +17,7 @@ test("スライダーをダブルクリックすると初期値に戻る", async
     await loc.dblclick();
     await expect(loc).toHaveValue(def);
   }
-  await expect(page.locator("label", { hasText: "暗さ" })).toContainText("35%");
+  await expect(page.locator("label", { hasText: "暗さ" })).toContainText("0%");
 
   // インスペクター（ネオンバーの本数と、位置・大きさ）
   await page.getByTestId("step-visual").click();
@@ -36,5 +36,5 @@ test("スライダーをダブルクリックすると初期値に戻る", async
   await page.waitForTimeout(600);
   await page.reload();
   await expect(page.getByTestId("perf-wasm")).toHaveText("OK", { timeout: 30_000 });
-  await expect(page.locator("label", { hasText: "暗さ" }).locator("input")).toHaveValue("0.35");
+  await expect(page.locator("label", { hasText: "暗さ" }).locator("input")).toHaveValue("0");
 });

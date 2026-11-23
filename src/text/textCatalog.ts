@@ -29,6 +29,17 @@ const styleParams = (size: number): ParamDef[] => [
   { key: "boxColor", label: "帯の色", type: "color", default: "#000000" },
 ];
 
+const writingParam = (): ParamDef => ({
+  key: "writing",
+  label: "文字の向き",
+  type: "select",
+  default: "horizontal",
+  options: [
+    { value: "horizontal", label: "横書き" },
+    { value: "vertical", label: "縦書き" },
+  ],
+});
+
 export const TITLE_PARAMS: ParamDef[] = [
   { key: "title", label: "タイトル", type: "text", default: "タイトル", multiline: true, placeholder: "曲名など" },
   { key: "subtitle", label: "サブタイトル", type: "text", default: "", placeholder: "アーティスト名など（空欄で非表示）" },
@@ -46,6 +57,7 @@ export const TITLE_PARAMS: ParamDef[] = [
       { value: "bottom", label: "下" },
     ],
   },
+  writingParam(),
   {
     key: "anim",
     label: "登場の動き",
@@ -94,16 +106,7 @@ export const SUBTITLE_PARAMS: ParamDef[] = [
       { value: "random", label: "ランダム配置（位置・角度・大きさ）" },
     ],
   },
-  {
-    key: "writing",
-    label: "文字の向き",
-    type: "select",
-    default: "horizontal",
-    options: [
-      { value: "horizontal", label: "横書き" },
-      { value: "vertical", label: "縦書き" },
-    ],
-  },
+  writingParam(),
   { key: "vx", label: "縦書きの横位置", type: "number", min: 0.05, max: 0.95, step: 0.01, default: 0.88 },
   { key: "highlight", label: "カラオケの色", type: "color", default: "#ffd23f" },
   { key: "offset", label: "タイミング調整（秒）", type: "number", min: -10, max: 10, step: 0.05, default: 0 },
@@ -177,10 +180,28 @@ export function titleAnchor(p: ParamValues, W: number, H: number): { cx: number;
   return { cx: W / 2, cy: H * (a === "top" ? 0.18 : a === "bottom" ? 0.8 : 0.5) };
 }
 
+/** タイトルの行（縦書きなら列）。縦書きは画面の高さの 8 割に入る文字数で区切る */
+export function titleLines(text: string, main: TextStyle, W: number, H: number, vertical: boolean): string[] {
+  if (!vertical) return wrapText(text, main, W * 0.9);
+  return wrapVertical(text, Math.max(1, Math.floor((H * 0.8) / (main.sizePx * 1.05 + main.spacingPx))));
+}
+
 /** タイトルの描画範囲（変形前）。当たり判定と拡大の基準に使う */
 export function titleBounds(p: ParamValues, W: number, H: number): Rect {
   const main = styleFrom(p, H);
   const sub = styleFrom(p, H, num(p, "subRatio", 0.45));
+  if (str(p, "writing", "horizontal") === "vertical") {
+    // 縦書き: 列を右から並べ、サブタイトルは左の列（少し下げる）
+    const cols = titleLines(str(p, "title", ""), main, W, H, true);
+    const subText = str(p, "subtitle", "");
+    const step = main.sizePx * 1.05 + main.spacingPx;
+    const subStep = sub.sizePx * 1.05 + sub.spacingPx;
+    const w = cols.length * main.sizePx * 1.35 + (subText ? sub.sizePx * 1.35 + main.sizePx * 0.15 : 0);
+    const h = Math.max(...cols.map((c) => [...c].length * step), subText ? main.sizePx * 1.2 + [...subText].length * subStep : 0, main.sizePx);
+    const { cx, cy } = titleAnchor(p, W, H);
+    const pad = main.outlinePx + main.sizePx * (0.25 + main.glow * 0.6);
+    return { x: cx - w / 2 - pad, y: cy - h / 2 - pad, w: w + pad * 2, h: h + pad * 2 };
+  }
   const lines = wrapText(str(p, "title", ""), main, W * 0.9);
   const subText = str(p, "subtitle", "");
   const w = Math.max(...lines.map((l) => measure(l, main)), subText ? measure(subText, sub) : 0, main.sizePx);

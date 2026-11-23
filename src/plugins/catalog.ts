@@ -237,12 +237,22 @@ export const radialBarsMeta: PluginMeta = {
   description: "円の周りに放射状のバー。中央で背景画像が回り、低音で脈打つ",
   paletteKeys: ["colorA", "colorB"],
   params: [
+    {
+      key: "art",
+      label: "中央の絵（背景画像）",
+      type: "select",
+      default: "show",
+      options: [
+        { value: "show", label: "表示する" },
+        { value: "hide", label: "表示しない" },
+      ],
+    },
     { key: "bars", label: "本数", type: "number", min: 32, max: 240, step: 4, default: 120 },
     { key: "radius", label: "半径", type: "number", min: 0.08, max: 0.4, step: 0.01, default: 0.2 },
     { key: "length", label: "バーの長さ", type: "number", min: 0.05, max: 0.5, step: 0.01, default: 0.2 },
     { key: "colorA", label: "色（低音側・縁）", type: "color", default: "#22d3ee" },
     { key: "colorB", label: "色（高音側）", type: "color", default: "#c45bff" },
-    { key: "art", label: "中央に背景画像", type: "boolean", default: true },
+
     { key: "spin", label: "画像の回転", type: "number", min: -1, max: 1, step: 0.05, default: 0.15 },
   ],
   bounds(p, W, H) {

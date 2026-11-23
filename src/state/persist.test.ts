@@ -37,7 +37,7 @@ describe("設定の保存と復元", () => {
       ],
       effects: [{ pluginId: "flash", params: { every: 0, color: "#123456", beatSens: 9 } }, "garbage"],
     })!;
-    expect(s.background).toEqual({ dim: 0.9, zoomPunch: 0.4, scale: 3, panX: 0, panY: 0, fadeIn: 0, fadeOut: 0 });
+    expect(s.background).toEqual({ dim: 0.9, zoomPunch: 0, scale: 3, panX: 0, panY: 0, fadeIn: 0, fadeOut: 0 });
     expect(s.visualizers.map((v) => v.pluginId)).toEqual(["pulse-ring", "pulse-ring"]);
     expect(s.visualizers[0].params).toMatchObject({ radius: 0.45, color: "#22d3ee", spikes: 128 });
     expect(s.visualizers[0].transform.scale).toBe(4);
@@ -113,5 +113,24 @@ describe("画面比率・種類ごとの設定値・配色", () => {
     expect(loadTheme(store)).toBe("dark");
     saveTheme("light", store);
     expect(loadTheme(store)).toBe("light");
+  });
+});
+
+describe("既定値の改訂（暗さ・ビートでズームの既定を 0 に）", () => {
+  it("replaces untouched old defaults but keeps user-changed values", () => {
+    const old = sanitizeSettings({ version: 1, background: { dim: 0.35, zoomPunch: 0.4, scale: 1 } })!;
+    expect(old.background.dim).toBe(0);
+    expect(old.background.zoomPunch).toBe(0);
+    const changed = sanitizeSettings({ version: 1, background: { dim: 0.5, zoomPunch: -0.3 } })!;
+    expect(changed.background).toMatchObject({ dim: 0.5, zoomPunch: -0.3 });
+    // 新しい形式で保存した 0.35 は利用者が選んだ値なので残す
+    const kept = sanitizeSettings({ version: 1, defaultsRev: 2, background: { dim: 0.35, zoomPunch: 0.4 } })!;
+    expect(kept.background).toMatchObject({ dim: 0.35, zoomPunch: 0.4 });
+  });
+
+  it("round-trips per-kind opacity", () => {
+    const store = memory();
+    saveSettings({ lastOpacity: { "v:neon-bars": 0.4, "fx:bloom": 2, "v:nope": 0.5 }, background: { dim: 0, zoomPunch: 0, scale: 1, panX: 0, panY: 0, fadeIn: 0, fadeOut: 0 }, visualizers: [], effects: [] }, store);
+    expect(loadSettings(store)!.lastOpacity).toEqual({ "v:neon-bars": 0.4, "fx:bloom": 1 });
   });
 });

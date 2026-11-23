@@ -196,6 +196,32 @@ function Header({ layerId, title, description }: { layerId: string; title: strin
   );
 }
 
+/**
+ * 透明度（0% = そのまま、100% = 見えない）。内部は不透明度 opacity = 1 - 透明度。
+ * エフェクトでは「かける前の絵」と混ぜる割合になる
+ */
+function OpacityField({ id, opacity, effect }: { id: string; opacity: number | undefined; effect?: boolean }) {
+  const setOpacity = useStore((s) => s.setOpacity);
+  const transparency = Math.round((1 - (opacity ?? 1)) * 100);
+  return (
+    <div data-testid="opacity-field">
+      <Field
+        def={{ key: "transparency", label: effect ? "透明度（効きを弱める）" : "透明度", type: "number", min: 0, max: 100, step: 1, default: 0, unit: "%" }}
+        value={transparency}
+        onChange={(v) => setOpacity(id, 1 - Number(v) / 100)}
+      />
+    </div>
+  );
+}
+
+function LockedNote({ text }: { text: string }) {
+  return (
+    <p data-testid="locked-note" className="rounded-lg bg-warn/10 px-3 py-1.5 text-xs text-warn">
+      🔒 固定中: {text}
+    </p>
+  );
+}
+
 /** 選択中のレイヤーの設定。項目はプラグインのパラメータ定義から自動生成する */
 export function Inspector() {
   const selectedId = useStore((s) => s.selectedLayerId);
@@ -216,6 +242,8 @@ export function Inspector() {
           title={textLayer.id === "title" ? "タイトル" : "字幕"}
           description="文字はいちばん手前に表示されます（エフェクトの影響を受けません）。初期値に戻しても、入力した文字はそのままです。"
         />
+        {textLayer.locked && <LockedNote text={`プレビュー上でのクリック・移動・拡大縮小はできません${textLayer.id === "subtitles" ? "（字幕を外すこともできません）" : ""}。ここでの調整はできます。`} />}
+        <OpacityField id={textLayer.id} opacity={textLayer.opacity} />
         <TextPalettePicker id={textLayer.id} defs={defs} params={textLayer.params} />
         <TransformControls id={textLayer.id} transform={textLayer.transform} />
         {defs.map((def) => (
@@ -231,6 +259,8 @@ export function Inspector() {
     return (
       <div className="space-y-4" data-testid="inspector">
         <Header layerId={effect.id} title={`✦ ${em.name}`} description={em.description} />
+        {effect.locked && <LockedNote text="削除できません（ここでの調整はできます）。" />}
+        <OpacityField id={effect.id} opacity={effect.opacity} effect />
         {em.params.map((def) => (
           <Field key={def.key} def={def} value={effect.params[def.key]} onChange={(v) => setEffectParam(effect.id, def.key, v)} />
         ))}
@@ -244,11 +274,8 @@ export function Inspector() {
   return (
     <div className="space-y-4" data-testid="inspector">
       <Header layerId={layer.id} title={meta.name} description={meta.description} />
-      {layer.locked && (
-        <p data-testid="locked-note" className="rounded-lg bg-warn/10 px-3 py-1.5 text-xs text-warn">
-          🔒 固定中: 削除と、プレビュー上でのクリック・移動・拡大縮小はできません（ここでの調整はできます）。
-        </p>
-      )}
+      {layer.locked && <LockedNote text="削除と、プレビュー上でのクリック・移動・拡大縮小はできません（ここでの調整はできます）。" />}
+      <OpacityField id={layer.id} opacity={layer.opacity} />
       {meta.paletteKeys && <PalettePicker layerId={layer.id} keys={meta.paletteKeys} params={layer.params} />}
       <TransformControls id={layer.id} transform={layer.transform} />
       {meta.params.map((def) => (

@@ -82,7 +82,7 @@ export function App() {
       <header className="flex min-w-0 items-center gap-2 bg-surface px-3 sm:gap-3 sm:px-4">
         <Logo className="h-8 w-8 shrink-0" />
         <h1 className="hidden truncate text-sm font-semibold tracking-wide sm:block">Audio Waves Visualizer</h1>
-        <span className="hidden rounded-md bg-raised px-2 py-0.5 text-xs text-ink-muted sm:inline">v0.6 プレビュー版</span>
+        <span className="hidden rounded-md bg-raised px-2 py-0.5 text-xs text-ink-muted sm:inline">v0.7 プレビュー版</span>
         <a href={CLASSIC_URL} data-testid="classic-link" className="classic-link shrink-0 rounded-md px-2 py-1 text-[11px] font-bold sm:ml-2 sm:px-2.5 sm:text-xs">
           → 旧版はこちら
         </a>
@@ -143,7 +143,7 @@ export function App() {
           </div>
         </div>
 
-        <section className="relative order-first min-h-[40vh] bg-base p-4 lg:order-none lg:min-h-0">
+        <section className="relative order-first min-h-[40vh] bg-stage p-4 lg:order-none lg:min-h-0">
           <Stage />
           {loading && <div className="glass absolute left-6 top-6 rounded-lg px-3 py-2 text-sm">{loading}</div>}
           {error && (

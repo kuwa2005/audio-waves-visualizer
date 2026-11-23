@@ -53,6 +53,11 @@ const VERTICAL_FORMS: Record<string, string> = {
   "？": "︖",
 };
 
+/** 縦書き用の字形に置き換えた文字の並び */
+export function verticalChars(text: string): string[] {
+  return [...text].map((c) => VERTICAL_FORMS[c] ?? c);
+}
+
 /** 行（横書き）または列（縦書き）に並べる。ブロックの中心を (0,0) とする */
 export function layoutGlyphs(lines: string[], style: TextStyle, vertical: boolean): { glyphs: Glyph[]; width: number; height: number } {
   const glyphs: Glyph[] = [];
